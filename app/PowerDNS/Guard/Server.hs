@@ -108,6 +108,7 @@ guardedCryptokeys _ = PDNS.CryptokeysAPI
     , PDNS.apiDeleteCryptokey = const3 forbidden
     }
 
+-- | Runs a ClientM action and throws client errors back as server errors.
 runProxy :: ClientM a -> GuardM a
 runProxy act = do
     ce <- envProxyEnv <$> ask
@@ -123,6 +124,13 @@ runProxy act = do
 
 forbidden :: GuardM a
 forbidden = throwIO err403
+
+-- | A natural transformation turning a GuardM into a plain Servant handler.
+-- See https://docs.servant.dev/en/stable/cookbook/using-custom-monad/UsingCustomMonad.html
+-- One of the core themes is that we want an unliftable monad. Inside GuardM we throw
+-- ServerError as an exception, and this handler catches them back. We also
+-- catch outstanding exceptions and produce a 500 error here instead. This allows
+-- middlewares to log these requests and responses as well.
 
 toHandler :: Env -> GuardM a -> Handler a
 toHandler env = Handler . ExceptT . flip runReaderT env . runStdoutLoggingT . runGuardM . catchRemEx
@@ -157,7 +165,7 @@ mkApp cfg = do
   let env = Env clientEnv
   pure (genericServeTWithContext (toHandler env) server (ourContext cfg))
 
-
+-- | A custom authentication handler as per https://docs.servant.dev/en/stable/tutorial/Authentication.html#generalized-authentication
 authHandler :: Config -> AuthHandler Request Account
 authHandler cfg = mkAuthHandler handler
   where

@@ -29,12 +29,13 @@ optInfo = info (cmd <**> helper)
 
 cmd :: Parser Command
 cmd = subparser $ mconcat
-  [ command "run-server" (info (CmdRunServer <$> serverOpts) (progDesc "Run the server" ))
+  [ command "run-server" (info serverOpts (progDesc "Run the server" ))
   , command "config-help" (info (pure CmdConfigHelp) (progDesc "Display config help" ))
   ]
 
-serverOpts :: Parser ServerOpts
-serverOpts = ServerOpts <$> parseVerbosity
+serverOpts :: Parser Command
+serverOpts = (CmdRunServer <$> go) <**> helper
+  where go = ServerOpts <$> parseVerbosity
                         <*> parseConfigFile
 
 parseConfigFile :: Parser FilePath
