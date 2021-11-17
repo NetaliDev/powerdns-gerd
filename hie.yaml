@@ -1,0 +1,11 @@
+cradle:
+  multi:
+    - path: "./dist-newstyle"
+      config:
+        cradle:
+          none:
+    - path: "./app"
+      config:
+        cradle:
+            cabal:
+                component: "powerdns-guard"
