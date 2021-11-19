@@ -9,43 +9,47 @@ module PowerDNS.Guard.Server
   )
 where
 
-import           Servant.Server (Application, ServerError(..), err500, err403, Handler(..), err401, err400)
-import           Servant.Server.Generic (genericServeTWithContext, AsServer, genericServerT)
-import           Servant (Context(..), throwError)
-import           Servant.Server.Experimental.Auth (AuthHandler, mkAuthHandler)
-import           PowerDNS.Guard.Account
-import           Network.Wai (Request (requestHeaders))
-import           UnliftIO (throwIO, MonadUnliftIO, liftIO)
-import           Control.Monad.Logger (logError, runStdoutLoggingT)
-
-import           Control.Monad.Trans.Except (ExceptT(ExceptT))
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BSL
+import           Control.Monad (unless)
 import           Data.Char (ord)
 import           Data.Coerce (coerce)
+import           Data.Foldable (toList, for_)
 import           Data.Maybe (isJust)
+
+import           Control.Monad.Logger (logError, runStdoutLoggingT)
+import           Control.Monad.Reader (ask)
+import           Control.Monad.Trans.Except (ExceptT(ExceptT))
+import           Control.Monad.Trans.Reader (runReaderT)
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS8
+import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import           Data.Text.Encoding.Error (lenientDecode)
+import           Network.HTTP.Client (newManager)
+import           Network.HTTP.Client.TLS (tlsManagerSettings)
+import           Network.HTTP.Types (Status(Status))
+import           Network.Wai (Request (requestHeaders))
 import qualified PowerDNS.API as PDNS
+import qualified PowerDNS.Client as PDNS
+import           PowerDNS.Guard.Account
+import           Servant (Context(..), throwError)
+import           Servant.Client (ClientEnv, ClientM, runClientM, ClientError (FailureResponse))
+import           Servant.Client (parseBaseUrl)
+import           Servant.Client.Streaming (ResponseF(Response), BaseUrl, mkClientEnv)
+import           Servant.Server (Application, ServerError(..), err500, err403, Handler(..), err401, err400)
+import           Servant.Server.Experimental.Auth (AuthHandler, mkAuthHandler)
+import           Servant.Server.Generic (genericServeTWithContext, AsServer, genericServerT)
+import           UnliftIO (throwIO, MonadUnliftIO, liftIO)
+import qualified UnliftIO.Exception as E
+
 import           PowerDNS.Guard.API
 import           PowerDNS.Guard.Config (Config(..))
 import           PowerDNS.Guard.Types
 import           PowerDNS.Guard.Utils
-import           Servant.Client (ClientEnv, ClientM, runClientM, ClientError (FailureResponse))
-import           Servant.Client.Streaming (ResponseF(Response), BaseUrl, mkClientEnv)
-import qualified UnliftIO.Exception as E
-import Network.HTTP.Types (Status(Status))
-import qualified Data.ByteString.Char8 as BS8
-import Data.Foldable (toList)
-import Servant.Client (parseBaseUrl)
-import Network.HTTP.Client.TLS (tlsManagerSettings)
-import Network.HTTP.Client (newManager)
-import Control.Monad.Trans.Reader (runReaderT)
-import qualified PowerDNS.Client as PDNS
-import Control.Monad.Reader (ask)
-import Control.Monad (unless)
-  
+import           PowerDNS.Guard.Permission
+import Control.Monad (when)
+import qualified Data.Map as M
+
 server :: GuardedAPI AsGuard
 server = GuardedAPI
   { servers    = genericServerT . guardedServers
@@ -64,22 +68,46 @@ guardedServers _ = PDNS.ServersAPI
   , PDNS.apiStatistics  = const3 forbidden
   }
 
+withZonePerms :: Account -> T.Text -> (ZonePerms -> GuardM a) -> GuardM a
+withZonePerms acc zone cb = do
+    maybe (forbiddenWhy "No permissions exist for this zone")
+          cb
+          (M.lookup (ZoneId zone) (acZonePerms acc))
+
+matchesRecordSpec :: PDNS.RRSet -> RecordSpec -> Bool
+matchesRecordSpec _ AnyRecord = True
+matchesRecordSpec PDNS.RRSet{PDNS.rrset_name = rname} (Exact (RelDomain spec)) = rname == spec
+
+matchesRecordTypeSpec :: PDNS.RRSet -> RecordTypeSpec -> Bool
+matchesRecordTypeSpec _ AnyRecordType = True
+matchesRecordTypeSpec PDNS.RRSet{PDNS.rrset_type = rtype} (Matching types)
+  = rtype `elem` types
+
 guardedZones :: Account -> PDNS.ZonesAPI AsGuard
 guardedZones acc = PDNS.ZonesAPI
-  { PDNS.apiListZones     = \server limit inc -> do
-      unless (acMayListZones acc) forbidden
-      runProxy (PDNS.listZones server limit inc)
-  
-  , PDNS.apiCreateZone    = const3 forbidden
-  , PDNS.apiGetZone       = const3 forbidden
-  , PDNS.apiDeleteZone    = const2 forbidden
-  , PDNS.apiUpdateRecords = const3 forbidden
-  , PDNS.apiUpdateZone    = const3 forbidden
-  , PDNS.apiTriggerAxfr   = const2 forbidden
-  , PDNS.apiNotifySlaves  = const2 forbidden
-  , PDNS.apiGetZoneAxfr   = const2 forbidden
-  , PDNS.apiRectifyZone   = const2 forbidden
-  }
+    { PDNS.apiListZones     = const3 forbidden
+    , PDNS.apiCreateZone    = const3 forbidden
+    , PDNS.apiGetZone       = \server zone includeRRs ->
+        withZonePerms acc zone $ \perms ->
+          runProxy (PDNS.getZone server zone includeRRs)
+
+    , PDNS.apiDeleteZone    = const2 forbidden
+    , PDNS.apiUpdateRecords = \server zone rrs ->
+        withZonePerms acc zone $ \perms ->  do
+            for_ (PDNS.rrsets rrs) $ \rrset -> do
+              let matchingPerms = filter (\(RecordPerm reco recoTy) -> matchesRecordSpec rrset reco && matchesRecordTypeSpec rrset recoTy) (recordPerms perms)
+              when (null matchingPerms)
+                (forbiddenWhy "No permssions exist for this record or record type")
+
+            runProxy (PDNS.updateRecords server zone rrs)
+
+
+    , PDNS.apiUpdateZone    = const3 forbidden
+    , PDNS.apiTriggerAxfr   = const2 forbidden
+    , PDNS.apiNotifySlaves  = const2 forbidden
+    , PDNS.apiGetZoneAxfr   = const2 forbidden
+    , PDNS.apiRectifyZone   = const2 forbidden
+    }
 
 guardedMetadata :: Account -> PDNS.MetadataAPI AsGuard
 guardedMetadata _ = PDNS.MetadataAPI
@@ -116,7 +144,7 @@ runProxy act = do
     either handleErr pure r
   where
     handleErr (FailureResponse _ resp) = throwIO (responseFToServerErr resp)
-    
+
     responseFToServerErr :: ResponseF BSL.ByteString -> ServerError
     responseFToServerErr (Response (Status code message) headers _version body)
       = ServerError code (BS8.unpack message) body (toList headers)
@@ -125,19 +153,21 @@ runProxy act = do
 forbidden :: GuardM a
 forbidden = throwIO err403
 
+forbiddenWhy :: BSL.ByteString -> GuardM a
+forbiddenWhy reason = throwIO err403{ errBody = reason }
+
 -- | A natural transformation turning a GuardM into a plain Servant handler.
 -- See https://docs.servant.dev/en/stable/cookbook/using-custom-monad/UsingCustomMonad.html
 -- One of the core themes is that we want an unliftable monad. Inside GuardM we throw
 -- ServerError as an exception, and this handler catches them back. We also
 -- catch outstanding exceptions and produce a 500 error here instead. This allows
 -- middlewares to log these requests and responses as well.
-
 toHandler :: Env -> GuardM a -> Handler a
 toHandler env = Handler . ExceptT . flip runReaderT env . runStdoutLoggingT . runGuardM . catchRemEx
   where
     catchRemEx :: forall a. GuardM a -> GuardM (Either ServerError a)
     catchRemEx handler = (Right <$> handler) `E.catches` exceptions
-  
+
     exceptions :: [E.Handler GuardM (Either ServerError a)]
     exceptions = [ E.Handler prpgSrvErr
                 , E.Handler handleAnyException
@@ -171,13 +201,13 @@ authHandler cfg = mkAuthHandler handler
   where
     db :: [Account]
     db = cfgAccounts cfg
-  
+
     note401 :: Maybe a -> BSL.ByteString -> Handler a
     note401 m reason = maybe (throw401 reason) pure m
 
     throw401 :: BSL.ByteString -> Handler a
     throw401 msg = throwError (err401 { errBody = msg })
-  
+
     throw400 :: BSL.ByteString -> Handler a
     throw400 msg = throwError (err400 { errBody = msg })
 

@@ -35,6 +35,7 @@ executable powerdns-guard
                       PowerDNS.Guard.Utils
                       PowerDNS.Guard.Config
                       PowerDNS.Guard.Options
+                      PowerDNS.Guard.Permission
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -53,6 +54,7 @@ executable powerdns-guard
                     , servant-client
                     , servant-client-core
                     , servant-server
+                    , containers
                     , text
                     , transformers
                     , unliftio

@@ -11,11 +11,14 @@ import qualified Data.ByteString.Char8 as B8
 import Servant (errBody)
 import qualified Data.Text.Encoding as T
 import Data.Foldable (find)
+import qualified Data.Map.Strict as M
+
+import PowerDNS.Guard.Permission
 
 data Account = Account
   { acName :: T.Text
-  , acHash :: B8.ByteString
-  , acMayListZones :: Bool
+  , acPassHash :: B8.ByteString
+  , acZonePerms :: M.Map ZoneId ZonePerms
   }
 
 authenticate :: [Account] -> T.Text -> B8.ByteString -> IO (Maybe Account)
@@ -28,7 +31,7 @@ authenticate db name pass = maybe (pure Nothing)
   
     verify :: Account -> IO (Maybe Account)
     verify ac = do
-      valid <- verifyArgon2id pass (acHash ac)
+      valid <- verifyArgon2id pass (acPassHash ac)
       if valid
         then pure (Just ac)
         else pure Nothing
