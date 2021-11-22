@@ -11,9 +11,7 @@ where
 
 import           Control.Monad (unless)
 import           Data.Char (ord)
-import           Data.Coerce (coerce)
 import           Data.Foldable (toList, for_)
-import           Data.Maybe (isJust)
 
 import           Control.Monad.Logger (logError, runStdoutLoggingT)
 import           Control.Monad.Reader (ask)
@@ -33,13 +31,13 @@ import qualified PowerDNS.API as PDNS
 import qualified PowerDNS.Client as PDNS
 import           PowerDNS.Guard.Account
 import           Servant (Context(..), throwError)
-import           Servant.Client (ClientEnv, ClientM, runClientM, ClientError (FailureResponse))
+import           Servant.Client (ClientM, runClientM, ClientError (FailureResponse))
 import           Servant.Client (parseBaseUrl)
-import           Servant.Client.Streaming (ResponseF(Response), BaseUrl, mkClientEnv)
+import           Servant.Client.Streaming (ResponseF(Response), mkClientEnv)
 import           Servant.Server (Application, ServerError(..), err500, err403, Handler(..), err401, err400)
 import           Servant.Server.Experimental.Auth (AuthHandler, mkAuthHandler)
-import           Servant.Server.Generic (genericServeTWithContext, AsServer, genericServerT)
-import           UnliftIO (throwIO, MonadUnliftIO, liftIO)
+import           Servant.Server.Generic (genericServeTWithContext, genericServerT)
+import           UnliftIO (throwIO, liftIO)
 import qualified UnliftIO.Exception as E
 
 import           PowerDNS.Guard.API
@@ -47,8 +45,7 @@ import           PowerDNS.Guard.Config (Config(..))
 import           PowerDNS.Guard.Types
 import           PowerDNS.Guard.Utils
 import           PowerDNS.Guard.Permission
-import Control.Monad (when)
-import qualified Data.Map as M
+
 
 server :: GuardedAPI AsGuard
 server = GuardedAPI
@@ -68,38 +65,36 @@ guardedServers _ = PDNS.ServersAPI
   , PDNS.apiStatistics  = const3 forbidden
   }
 
-withZonePerms :: Account -> T.Text -> (ZonePerms -> GuardM a) -> GuardM a
-withZonePerms acc zone cb = do
-    maybe (forbiddenWhy "No permissions exist for this zone")
-          cb
-          (M.lookup (ZoneId zone) (acZonePerms acc))
+getDomainPerms :: Account -> ZoneId -> Domain Relative -> GuardM [DomainPermission]
+getDomainPerms acc zone rel =
+    maybe (forbiddenWhy "No permissions exist for this domain")
+          pure
+          (emptyToNothing (domainPerms acc zone rel))
+  where
+    emptyToNothing :: [a] -> Maybe [a]
+    emptyToNothing [] = Nothing
+    emptyToNothing xs = Just xs
 
-matchesRecordSpec :: PDNS.RRSet -> RecordSpec -> Bool
-matchesRecordSpec _ AnyRecord = True
-matchesRecordSpec PDNS.RRSet{PDNS.rrset_name = rname} (Exact (RelDomain spec)) = rname == spec
-
-matchesRecordTypeSpec :: PDNS.RRSet -> RecordTypeSpec -> Bool
-matchesRecordTypeSpec _ AnyRecordType = True
-matchesRecordTypeSpec PDNS.RRSet{PDNS.rrset_type = rtype} (Matching types)
-  = rtype `elem` types
+-- | Ensure the account has sufficient permissions for this RRset
+ensureMayModifyRRset :: Account -> ZoneId -> PDNS.RRSet -> GuardM ()
+ensureMayModifyRRset acc zone (PDNS.RRSet{PDNS.rrset_name = dom, PDNS.rrset_type = rtype}) = do
+    perms <- getDomainPerms acc zone (Domain dom)
+    unless (any matchingPerm perms) $
+        forbiddenWhy "No permissions for this record type"
+  where
+    matchingPerm (MayModifyRecordType xs) = rtype `elem` xs
+    matchingPerm MayModifyAnyRecordType = True
 
 guardedZones :: Account -> PDNS.ZonesAPI AsGuard
 guardedZones acc = PDNS.ZonesAPI
     { PDNS.apiListZones     = const3 forbidden
     , PDNS.apiCreateZone    = const3 forbidden
-    , PDNS.apiGetZone       = \server zone includeRRs ->
-        withZonePerms acc zone $ \perms ->
-          runProxy (PDNS.getZone server zone includeRRs)
-
+    , PDNS.apiGetZone       = const3 forbidden
     , PDNS.apiDeleteZone    = const2 forbidden
-    , PDNS.apiUpdateRecords = \server zone rrs ->
-        withZonePerms acc zone $ \perms ->  do
-            for_ (PDNS.rrsets rrs) $ \rrset -> do
-              let matchingPerms = filter (\(RecordPerm reco recoTy) -> matchesRecordSpec rrset reco && matchesRecordTypeSpec rrset recoTy) (recordPerms perms)
-              when (null matchingPerms)
-                (forbiddenWhy "No permssions exist for this record or record type")
-
-            runProxy (PDNS.updateRecords server zone rrs)
+    , PDNS.apiUpdateRecords = \srv zone rrs -> do
+        for_ (PDNS.rrsets rrs) $ \rrset -> do
+            ensureMayModifyRRset acc (ZoneId zone) rrset
+        runProxy (PDNS.updateRecords srv zone rrs)
 
 
     , PDNS.apiUpdateZone    = const3 forbidden
@@ -144,11 +139,11 @@ runProxy act = do
     either handleErr pure r
   where
     handleErr (FailureResponse _ resp) = throwIO (responseFToServerErr resp)
+    handleErr other = throwIO other
 
     responseFToServerErr :: ResponseF BSL.ByteString -> ServerError
     responseFToServerErr (Response (Status code message) headers _version body)
       = ServerError code (BS8.unpack message) body (toList headers)
-
 
 forbidden :: GuardM a
 forbidden = throwIO err403

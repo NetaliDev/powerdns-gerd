@@ -12,7 +12,6 @@ import qualified PowerDNS.API as PDNS
 import Servant.API
 import Servant.API.Generic
 import Servant.Server.Experimental.Auth (AuthServerData)
-import qualified Data.Text as T
 
 import PowerDNS.Guard.Account
 

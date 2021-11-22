@@ -8,18 +8,9 @@ where
 import qualified Data.Text as T
 import Libsodium
 import qualified Data.ByteString.Char8 as B8
-import Servant (errBody)
-import qualified Data.Text.Encoding as T
 import Data.Foldable (find)
-import qualified Data.Map.Strict as M
 
-import PowerDNS.Guard.Permission
-
-data Account = Account
-  { acName :: T.Text
-  , acPassHash :: B8.ByteString
-  , acZonePerms :: M.Map ZoneId ZonePerms
-  }
+import PowerDNS.Guard.Account.Types
 
 authenticate :: [Account] -> T.Text -> B8.ByteString -> IO (Maybe Account)
 authenticate db name pass = maybe (pure Nothing)
@@ -27,11 +18,11 @@ authenticate db name pass = maybe (pure Nothing)
                                   (find matchingName db)
   where
     matchingName :: Account -> Bool
-    matchingName ac = acName ac == name
+    matchingName ac = _acName ac == name
   
     verify :: Account -> IO (Maybe Account)
     verify ac = do
-      valid <- verifyArgon2id pass (acPassHash ac)
+      valid <- verifyArgon2id pass (_acPassHash ac)
       if valid
         then pure (Just ac)
         else pure Nothing

@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DataKinds #-}
 module PowerDNS.Guard.Config
   ( Config(..)
   , loadConfig
@@ -23,11 +24,11 @@ import           Network.Wai.Handler.Warp (HostPreference)
 import qualified Text.PrettyPrint as Pretty
 
 import           PowerDNS.Guard.Account
-import           Data.Foldable (asum)
-import PowerDNS.API (RecordType)
 import PowerDNS.Guard.Permission
 import PowerDNS.API.Zones
 import qualified Data.Map as M
+import Data.Bifunctor (first)
+import PowerDNS.Guard.Utils
 
 data Config = Config
   { cfgUpstreamApiBaseUrl :: T.Text
@@ -37,44 +38,47 @@ data Config = Config
   , cfgAccounts :: [Account]
   }
 
-optSectionDefault :: HasSpec a => a -> T.Text -> T.Text -> SectionsSpec a
-optSectionDefault def sect descr = fromMaybe def <$> optSection sect descr
-
 optSectionDefault' :: a -> T.Text -> ValueSpec a -> T.Text -> SectionsSpec a
 optSectionDefault' def sect spec descr = fromMaybe def <$> optSection' sect spec descr
 
-zoneIdSpec :: ValueSpec ZoneId
-zoneIdSpec = ZoneId <$> textSpec
-
-recordPermSpec :: ValueSpec RecordPerm
-recordPermSpec = sectionsSpec "managed-record-spec" $ do
-  n <- reqSection' "name" recordSpecSpec "The record name(s) that can be managed. Must be relative to the zone name."
+absRecordPermSpec :: ValueSpec (DomainSpec Absolute, DomainPermission)
+absRecordPermSpec = sectionsSpec "abs-record-spec" $ do
+  n <- reqSection' "name" absDomainSpec "The record name(s) that can be managed. Must be absolute with a trailing dot."
   t <- reqSection' "types" recordTypeSpec "The record types that can be managed."
-  pure (RecordPerm n t)
+  pure (n, t)
 
-zonePermSpec :: ValueSpec (ZoneId, ZonePerms)
+zoneRecordPermSpec :: ValueSpec (DomainSpec Relative, DomainPermission)
+zoneRecordPermSpec = sectionsSpec "zone-record-spec" $ do
+  n <- reqSection' "name" relDomainSpec "The record name(s) that can be managed. Must be relative to the zone name."
+  t <- reqSection' "types" recordTypeSpec "The record types that can be managed."
+  pure (n, t)
+
+zonePermSpec :: ValueSpec (ZoneId, PermissionList Relative)
 zonePermSpec = sectionsSpec "zone-permission" $ do
-  zpZone <- reqSection' "zone" zoneIdSpec "DNS name of the zone"
-  zpManagedRecords <- optSectionDefault' []
-                                         "managedRecords"
-                                         (listSpec recordPermSpec)
+  zone <- reqSection' "zone" (ZoneId <$> textSpec) "DNS name of the zone"
+  perms <- optSectionDefault' []
+                                         "recordPerms"
+                                         (listSpec zoneRecordPermSpec)
                                          "List of records the user can manage in this zone"
 
-  pure (zpZone, ZonePerms zpManagedRecords)
+  pure (zone, perms)
 
-zonePermMapSpec :: ValueSpec (M.Map ZoneId ZonePerms)
+zonePermMapSpec :: ValueSpec (M.Map ZoneId (PermissionList Relative))
 zonePermMapSpec = M.fromList <$> listSpec zonePermSpec
 
-recordTypeSpec :: ValueSpec RecordTypeSpec
-recordTypeSpec = AnyRecordType <$ atomSpec "any"
-             <!> Matching <$> listSpec recordAtomSpec
+recordTypeSpec :: ValueSpec DomainPermission
+recordTypeSpec = MayModifyAnyRecordType <$ atomSpec "any"
+             <!> MayModifyRecordType <$> listSpec recordAtomSpec
 
-recordSpecSpec :: ValueSpec RecordSpec
-recordSpecSpec = AnyRecord <$ atomSpec "any"
-             <!> Exact <$> relDomainSpec
+relDomainSpec :: ValueSpec (DomainSpec Relative)
+relDomainSpec = customSpec "Absolute domain (with trailing dot). A leading wildcard like \"*.foo\" or \"*\" is allowed"
+                           textSpec
+                           (first T.pack . parseRelDomainSpec)
 
-relDomainSpec :: ValueSpec RelDomain
-relDomainSpec = RelDomain <$> textSpec
+absDomainSpec :: ValueSpec (DomainSpec Absolute)
+absDomainSpec = customSpec "Relative domain (without trailing dot). A leading wildcard like \"*.foo\" or \"*\" is allowed"
+                            textSpec
+                            (first T.pack . parseAbsDomainSpec)
 
 recordAtomSpec :: ValueSpec RecordType
 recordAtomSpec =    A          <$ atomSpec "A"
@@ -142,9 +146,18 @@ configSpec = sectionsSpec "top-level" $ do
 
 accountSpec :: ValueSpec Account
 accountSpec = sectionsSpec "account" $ do
-  acName <- reqSection "name" "The name of the API account"
-  acPassHash <- reqSection' "passHash" (T.encodeUtf8 <$> textSpec)"Argon2id hash of the secret as a string in the original reference format, e.g.: $argon2id$v=19$m=65536,t=3,p=2$c29tZXNhbHQ$RdescudvJCsgt3ub+b+dWRWJTmaaJObG"
-  acZonePerms <- reqSection' "zonePerms" (zonePermMapSpec) "Whether or not the account may list all zones of the server"
+  _acName <- reqSection "name" "The name of the API account"
+  _acPassHash <- reqSection' "passHash"
+                            (T.encodeUtf8 <$> textSpec)
+                            "Argon2id hash of the secret as a string in the original reference format, e.g.: $argon2id$v=19$m=65536,t=3,p=2$c29tZXNhbHQ$RdescudvJCsgt3ub+b+dWRWJTmaaJObG"
+  _acZonePerms <- optSectionDefault' mempty
+                                    "zonePerms"
+                                    (zonePermMapSpec)
+                                    "Whether or not the account may list all zones of the server"
+  _acRecordPerms <- optSectionDefault' []
+                                    "recordPerms"
+                                    (listSpec absRecordPermSpec)
+                                    "Record permissions of absolute domains. This will grant a permission irrespective of the containing domain."
 
   pure Account{..}
 

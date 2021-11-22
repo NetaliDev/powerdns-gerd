@@ -30,16 +30,20 @@ executable powerdns-guard
     -- Modules included in this executable, other than Main.
     other-modules:    PowerDNS.Guard.API
                       PowerDNS.Guard.Account
+                      PowerDNS.Guard.Account.Types
                       PowerDNS.Guard.Server
                       PowerDNS.Guard.Types
                       PowerDNS.Guard.Utils
                       PowerDNS.Guard.Config
                       PowerDNS.Guard.Options
                       PowerDNS.Guard.Permission
+                      PowerDNS.Guard.Permission.Types
 
+    ghc-options: -Wall -Werror=incomplete-patterns -fno-warn-unticked-promoted-constructors
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
     build-depends:    base ^>=4.14.1.0
+                    , attoparsec
                     , bytestring
                     , config-schema
                     , libsodium
