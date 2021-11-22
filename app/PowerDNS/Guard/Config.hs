@@ -55,9 +55,9 @@ zoneRecordPermSpec = sectionsSpec "zone-record-spec" $ do
 
 zonePermSpec :: ValueSpec (ZoneId, PermissionList Relative)
 zonePermSpec = sectionsSpec "zone-permission" $ do
-  zone <- reqSection' "zone" (ZoneId <$> textSpec) "DNS name of the zone"
+  zone <- reqSection' "zone" zoneIdSpec "DNS name of the zone"
   perms <- optSectionDefault' []
-                                         "recordPerms"
+                                         "domainPerms"
                                          (listSpec zoneRecordPermSpec)
                                          "List of records the user can manage in this zone"
 
@@ -71,14 +71,21 @@ recordTypeSpec = MayModifyAnyRecordType <$ atomSpec "any"
              <!> MayModifyRecordType <$> listSpec recordAtomSpec
 
 relDomainSpec :: ValueSpec (DomainSpec Relative)
-relDomainSpec = customSpec "Absolute domain (with trailing dot). A leading wildcard like \"*.foo\" or \"*\" is allowed"
+relDomainSpec = AnyDomain <$ atomSpec "any"
+            <!> customSpec "Absolute domain (with trailing dot). A leading wildcard like \"*.foo\" or \"*\" is allowed"
                            textSpec
                            (first T.pack . parseRelDomainSpec)
 
 absDomainSpec :: ValueSpec (DomainSpec Absolute)
-absDomainSpec = customSpec "Relative domain (without trailing dot). A leading wildcard like \"*.foo\" or \"*\" is allowed"
+absDomainSpec = AnyDomain <$ atomSpec "any"
+            <!> customSpec "Relative domain (without trailing dot). A leading wildcard like \"*.foo\" or \"*\" is allowed"
                             textSpec
                             (first T.pack . parseAbsDomainSpec)
+
+zoneIdSpec :: ValueSpec ZoneId
+zoneIdSpec = ZoneId <$> customSpec "Zone name (with trailing dot)."
+                        textSpec
+                        (first T.pack . parseAbsDomain)
 
 recordAtomSpec :: ValueSpec RecordType
 recordAtomSpec =    A          <$ atomSpec "A"
@@ -155,7 +162,7 @@ accountSpec = sectionsSpec "account" $ do
                                     (zonePermMapSpec)
                                     "Whether or not the account may list all zones of the server"
   _acRecordPerms <- optSectionDefault' []
-                                    "recordPerms"
+                                    "domainPerms"
                                     (listSpec absRecordPermSpec)
                                     "Record permissions of absolute domains. This will grant a permission irrespective of the containing domain."
 
