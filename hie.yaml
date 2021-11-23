@@ -8,4 +8,14 @@ cradle:
       config:
         cradle:
             cabal:
-                component: "powerdns-guard"
+                component: "powerdns-guard:exe:powerdns-guard"
+    - path: "./lib"
+      config:
+        cradle:
+            cabal:
+                component: "powerdns-guard:lib:powerdns-guard-lib"
+    - path: "./test"
+      config:
+        cradle:
+            cabal:
+                component: "powerdns-guard:test:powerdns-guard-test"

@@ -1,49 +1,62 @@
 cabal-version:      2.4
 name:               powerdns-guard
 version:            0.1.0.0
-
--- A short (one-line) description of the package.
--- synopsis:
-
--- A longer description of the package.
--- description:
-
--- A URL where users can report bugs.
--- bug-reports:
-
--- The license under which the package is released.
--- license:
-
--- The package author(s).
--- author:
 maintainer:         dminuoso+git@icloud.com
 
--- A copyright notice.
--- copyright:
--- category:
 extra-source-files: CHANGELOG.md
 
-executable powerdns-guard
-    main-is:          Main.hs
-                      
+common all
+    build-depends:    base ^>=4.14.1.0
+    ghc-options:      -Wall -Werror=incomplete-patterns -fno-warn-unticked-promoted-constructors
+    default-language: Haskell2010
 
-    -- Modules included in this executable, other than Main.
+common exes
+    ghc-options:      -rtsopts -threaded -with-rtsopts=-qg
+
+test-suite powerdns-guard-test
+    import:           all, exes
+    type:             exitcode-stdio-1.0
+    main-is:          Spec.hs
+    other-modules:    Utils
+    hs-source-dirs:   test
+    ghc-options:      -threaded -with-rtsopts=-qg
+    build-depends:    HUnit
+                    , tasty
+                    , tasty-hunit
+                    , servant-client
+                    , servant-client-core
+                    , http-client
+                    , http-types
+                    , powerdns
+                    , powerdns-guard-lib
+                    , text
+                    , warp
+                    , wai-extra
+                    , call-stack
+
+executable powerdns-guard
+    import:           all, exes
+    main-is:          Main.hs
+    build-depends:  , powerdns-guard-lib
+                    , warp
+    hs-source-dirs:   app
+    default-language: Haskell2010
+
+library powerdns-guard-lib
+    import:           all
+    exposed-modules:  PowerDNS.Guard.Options
+                      PowerDNS.Guard.Server
+                      PowerDNS.Guard.Config
+
     other-modules:    PowerDNS.Guard.API
                       PowerDNS.Guard.Account
                       PowerDNS.Guard.Account.Types
-                      PowerDNS.Guard.Server
                       PowerDNS.Guard.Types
                       PowerDNS.Guard.Utils
-                      PowerDNS.Guard.Config
-                      PowerDNS.Guard.Options
                       PowerDNS.Guard.Permission
                       PowerDNS.Guard.Permission.Types
 
-    ghc-options: -Wall -Werror=incomplete-patterns -fno-warn-unticked-promoted-constructors
-    -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
-    build-depends:    base ^>=4.14.1.0
-                    , attoparsec
+    build-depends:    attoparsec
                     , bytestring
                     , config-schema
                     , libsodium
@@ -65,5 +78,4 @@ executable powerdns-guard
                     , wai
                     , warp
                     , http-types
-    hs-source-dirs:   app
-    default-language: Haskell2010
+    hs-source-dirs:  lib

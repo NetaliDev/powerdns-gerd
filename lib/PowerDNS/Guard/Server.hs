@@ -9,7 +9,7 @@ module PowerDNS.Guard.Server
   )
 where
 
-import           Control.Monad (unless)
+import           Control.Monad (unless, when)
 import           Data.Char (ord)
 import           Data.Foldable (toList, for_)
 
@@ -30,13 +30,13 @@ import           Network.Wai (Request (requestHeaders))
 import qualified PowerDNS.API as PDNS
 import qualified PowerDNS.Client as PDNS
 import           PowerDNS.Guard.Account
-import           Servant (Context(..), throwError)
+import           Servant (Context(..), throwError, HasServer (hoistServerWithContext))
 import           Servant.Client (ClientM, runClientM, ClientError (FailureResponse))
 import           Servant.Client (parseBaseUrl)
 import           Servant.Client.Streaming (ResponseF(Response), mkClientEnv)
-import           Servant.Server (Application, ServerError(..), err500, err403, Handler(..), err401, err400)
+import           Servant.Server (Application, ServerError(..), err500, err403, Handler(..), err401, err400, HasServer (ServerT), serveWithContext)
 import           Servant.Server.Experimental.Auth (AuthHandler, mkAuthHandler)
-import           Servant.Server.Generic (genericServeTWithContext, genericServerT)
+import           Servant.Server.Generic (genericServerT)
 import           UnliftIO (throwIO, liftIO)
 import qualified UnliftIO.Exception as E
 
@@ -45,7 +45,11 @@ import           PowerDNS.Guard.Config (Config(..))
 import           PowerDNS.Guard.Types
 import           PowerDNS.Guard.Utils
 import           PowerDNS.Guard.Permission
+import Data.Data (Proxy(..))
 
+
+topServer :: ServerT API GuardM
+topServer = genericServerT server
 
 server :: GuardedAPI AsGuard
 server = GuardedAPI
@@ -65,15 +69,15 @@ guardedServers _ = PDNS.ServersAPI
   , PDNS.apiStatistics  = const3 forbidden
   }
 
-getDomainPerms :: Account -> ZoneId -> Domain Relative -> GuardM [DomainPermission]
+getDomainPerms :: Account -> ZoneId -> Domain Absolute -> GuardM [DomainPermission]
 getDomainPerms acc zone rel =
-    maybe (forbiddenWhy "No permissions exist for this domain")
-          pure
-          (emptyToNothing (domainPerms acc zone rel))
-  where
-    emptyToNothing :: [a] -> Maybe [a]
-    emptyToNothing [] = Nothing
-    emptyToNothing xs = Just xs
+        maybe (forbiddenWhy "No permissions exist for this domain")
+            pure
+            (emptyToNothing (domainPerms acc zone rel))
+    where
+        emptyToNothing :: [a] -> Maybe [a]
+        emptyToNothing [] = Nothing
+        emptyToNothing xs = Just xs
 
 -- | Ensure the account has sufficient permissions for this RRset
 ensureMayModifyRRset :: Account -> ZoneId -> PDNS.RRSet -> GuardM ()
@@ -92,6 +96,7 @@ guardedZones acc = PDNS.ZonesAPI
     , PDNS.apiGetZone       = const3 forbidden
     , PDNS.apiDeleteZone    = const2 forbidden
     , PDNS.apiUpdateRecords = \srv zone rrs -> do
+        when (null $ PDNS.rrsets rrs) forbidden
         for_ (PDNS.rrsets rrs) $ \rrset -> do
             ensureMayModifyRRset acc (ZoneId zone) rrset
         runProxy (PDNS.updateRecords srv zone rrs)
@@ -188,7 +193,9 @@ mkApp cfg = do
   mgr <- newManager tlsManagerSettings
   let clientEnv =  PDNS.applyXApiKey (cfgUpstreamApiKey cfg) (mkClientEnv mgr url)
   let env = Env clientEnv
-  pure (genericServeTWithContext (toHandler env) server (ourContext cfg))
+
+  pure (serveWithContext api (ourContext cfg) $
+        hoistServerWithContext api (Proxy :: Proxy CtxtList) (toHandler env) topServer)
 
 -- | A custom authentication handler as per https://docs.servant.dev/en/stable/tutorial/Authentication.html#generalized-authentication
 authHandler :: Config -> AuthHandler Request Account
@@ -216,5 +223,6 @@ authHandler cfg = mkAuthHandler handler
             _            -> throw400 "Invalid X-API-Key syntax"
 
 
-ourContext :: Config -> Context (AuthHandler Request Account ': '[])
+type CtxtList = AuthHandler Request Account ': '[]
+ourContext :: Config -> Context CtxtList
 ourContext cfg = authHandler cfg :. EmptyContext

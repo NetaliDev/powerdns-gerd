@@ -50,14 +50,14 @@ parseRelDomain = ATT.parseOnly (relDomainP <* ATT.endOfInput)
 parseRelDomainSpec :: T.Text -> Either String (DomainSpec Relative)
 parseRelDomainSpec = ATT.parseOnly $ asum
   [ AnyDomain <$ (ATT.string "*" <* ATT.endOfInput)
-  , HasSuffix . Domain <$> ATT.string "*." <* relDomainP <* ATT.endOfInput
+  , HasSuffix . Domain <$> (ATT.string "*." *> relDomainP <* ATT.endOfInput)
   , ExactDomain . Domain <$> relDomainP <* ATT.endOfInput
   ]
 
 parseAbsDomainSpec :: T.Text -> Either String (DomainSpec Absolute)
 parseAbsDomainSpec = ATT.parseOnly $ asum
   [ AnyDomain <$ (ATT.string "*" <* ATT.endOfInput)
-  , HasSuffix . Domain <$> ATT.string "*." <* relDomainP <* ATT.endOfInput
+  , HasSuffix . Domain <$> (ATT.string "*." *> absDomainP <* ATT.endOfInput)
   , ExactDomain . Domain <$> absDomainP <* ATT.endOfInput
   ]
 
