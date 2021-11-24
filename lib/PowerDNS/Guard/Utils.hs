@@ -59,8 +59,7 @@ domainLabelPatternInitP = asum [ DomLiteral <$> label <* ATT.string "."
 
 domainLabelPatternP :: ATT.Parser DomainLabelPattern
 domainLabelPatternP = asum [ DomLiteral <$> label <* ATT.string "."
-                           , DomGlob <$ ATT.string "*" ]
-
+                           , DomGlob <$ ATT.string "*." ]
 
 absDomainP :: ATT.Parser T.Text
 absDomainP = (<>) <$> relDomainP <*> ATT.string "."
