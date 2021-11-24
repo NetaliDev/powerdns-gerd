@@ -6,14 +6,17 @@ module PowerDNS.Guard.Permission.Types
   ( ZoneId(..)
   , DomainKind(..)
   , Domain(..)
-  , DomainSpec(..)
   , RecordTypeSpec(..)
   , AllowSpec(..)
   , PermissionList
-  , ElaboratedPermission(..)
+  , ElabDomainPerm(..)
   , ViewPermission(..)
   , ZonePermissions(..)
   , Authorization(..)
+  , ElabZonePerm(..)
+  , DomainLabelPattern(..)
+  , DomainPattern(..)
+  , DomainLabels(..)
   )
 where
 
@@ -21,17 +24,30 @@ import PowerDNS.API (RecordType)
 import qualified Data.Text as T
 
 data DomainKind = Absolute | Relative
-newtype Domain (k :: DomainKind) = Domain { getDomain :: T.Text } deriving Show
+
+newtype Domain (k :: DomainKind) = Domain
+  { getDomain :: T.Text
+  } deriving Show
 
 instance Eq (Domain k) where
   Domain x == Domain y = T.toLower x == T.toLower y
 
-newtype ZoneId = ZoneId { getZone :: T.Text } deriving (Eq, Ord, Show)
+newtype ZoneId = ZoneId
+  { getZone :: T.Text
+  } deriving (Eq, Ord, Show)
 
-data DomainSpec (k :: DomainKind)
-  = AnyDomain
-  | ExactDomain (Domain k)
-  | HasSuffix (Domain k)
+newtype DomainLabels = DomainLabels
+  { getDomainLabels :: [T.Text]
+  }
+
+newtype DomainPattern = DomainPattern
+  { getDomainPattern :: [DomainLabelPattern]
+  } deriving Show
+
+data DomainLabelPattern
+  = DomLiteral T.Text
+  | DomGlob -- ^ Represents a single asterisk glob matching any arbitrary domain at a given level.
+  | DomGlobStar -- ^ Represents a double asterisk matching any arbitrary subdomain at a given level.
   deriving Show
 
 data RecordTypeSpec
@@ -47,14 +63,19 @@ data ZonePermissions = ZonePermissions
   , zoneViewPermission :: Maybe ViewPermission
   } deriving Show
 
-type PermissionList = [(DomainSpec Absolute, AllowSpec)]
+type PermissionList = [(DomainPattern, AllowSpec)]
 
 data Authorization = Forbidden | Authorized
 
+data ElabZonePerm = ElabZonePerm
+  { ezZone :: ZoneId
+  , ezView :: Maybe ViewPermission
+  }
+
 -- | A domain permission that might be constrained to a particular zone
-data ElaboratedPermission = ElaboratedPermission
+data ElabDomainPerm = ElabDomainPerm
   { epZone :: Maybe ZoneId
-  , epDomain :: DomainSpec Absolute
+  , epDomainPat :: DomainPattern
   , epAllowed :: AllowSpec
   } deriving Show
 

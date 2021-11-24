@@ -8,15 +8,14 @@ module PowerDNS.Guard.Utils
   , const4
   , const5
   , parseAbsDomain
-  , parseRelDomain
-  , parseRelDomainSpec
-  , parseAbsDomainSpec
+  , parseAbsDomainLabels
+  , parseDomainPattern
   )
 where
 
 import qualified Data.Text as T
 import qualified Data.Attoparsec.Text as ATT
-import Control.Applicative (optional)
+import Control.Applicative (optional, some)
 import Data.List (intersperse)
 import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 
@@ -44,29 +43,34 @@ const5 a _ _ _ _ _ = a
 parseAbsDomain :: T.Text -> Either String T.Text
 parseAbsDomain = ATT.parseOnly (absDomainP <* ATT.endOfInput)
 
-parseRelDomain :: T.Text -> Either String T.Text
-parseRelDomain = ATT.parseOnly (relDomainP <* ATT.endOfInput)
+parseAbsDomainLabels :: T.Text -> Either String DomainLabels
+parseAbsDomainLabels = ATT.parseOnly (DomainLabels <$> relDomainLabelsP <* ATT.string "." <* ATT.endOfInput)
 
-parseRelDomainSpec :: T.Text -> Either String (DomainSpec Relative)
-parseRelDomainSpec = ATT.parseOnly $ asum
-  [ AnyDomain <$ (ATT.string "*" <* ATT.endOfInput)
-  , HasSuffix . Domain <$> (ATT.string "*." *> relDomainP <* ATT.endOfInput)
-  , ExactDomain . Domain <$> relDomainP <* ATT.endOfInput
-  ]
+parseDomainPattern :: T.Text -> Either String DomainPattern
+parseDomainPattern = ATT.parseOnly (domainPatternP <* ATT.endOfInput)
 
-parseAbsDomainSpec :: T.Text -> Either String (DomainSpec Absolute)
-parseAbsDomainSpec = ATT.parseOnly $ asum
-  [ AnyDomain <$ (ATT.string "*" <* ATT.endOfInput)
-  , HasSuffix . Domain <$> (ATT.string "*." *> absDomainP <* ATT.endOfInput)
-  , ExactDomain . Domain <$> absDomainP <* ATT.endOfInput
-  ]
+domainPatternP :: ATT.Parser DomainPattern
+domainPatternP = DomainPattern <$> ((:) <$> domainLabelPatternInitP <*> some domainLabelPatternP)
+
+domainLabelPatternInitP :: ATT.Parser DomainLabelPattern
+domainLabelPatternInitP = asum [ DomLiteral <$> label <* ATT.string "."
+                               , DomGlobStar <$ ATT.string "**."
+                               , DomGlob <$ ATT.string "*." ]
+
+domainLabelPatternP :: ATT.Parser DomainLabelPattern
+domainLabelPatternP = asum [ DomLiteral <$> label <* ATT.string "."
+                           , DomGlob <$ ATT.string "*" ]
+
 
 absDomainP :: ATT.Parser T.Text
 absDomainP = (<>) <$> relDomainP <*> ATT.string "."
 
+relDomainLabelsP :: ATT.Parser [T.Text]
+relDomainLabelsP = label `ATT.sepBy` ATT.string "."
+
 relDomainP :: ATT.Parser T.Text
 relDomainP = do
-  r <- label `ATT.sepBy` ATT.string "."
+  r <- relDomainLabelsP
   pure (mconcat (intersperse "." r))
 
 label :: ATT.Parser T.Text

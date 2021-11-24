@@ -41,9 +41,9 @@ data Config = Config
 optSectionDefault' :: a -> T.Text -> ValueSpec a -> T.Text -> SectionsSpec a
 optSectionDefault' def sect spec descr = fromMaybe def <$> optSection' sect spec descr
 
-absRecordPermSpec :: ValueSpec (DomainSpec Absolute, AllowSpec)
+absRecordPermSpec :: ValueSpec (DomainPattern, AllowSpec)
 absRecordPermSpec = sectionsSpec "abs-record-spec" $ do
-  n <- reqSection' "name" absDomainSpec "The record name(s) that can be managed. Must be absolute with a trailing dot."
+  n <- reqSection' "name" domainPatSpec "The record name(s) that can be managed. Must be absolute with a trailing dot."
   t <- reqSection' "types" recordTypeSpec "The record types that can be managed."
   pure (n, t)
 
@@ -69,11 +69,11 @@ recordTypeSpec :: ValueSpec AllowSpec
 recordTypeSpec = MayModifyAnyRecordType <$ atomSpec "any"
              <!> MayModifyRecordType <$> listSpec recordAtomSpec
 
-absDomainSpec :: ValueSpec (DomainSpec Absolute)
-absDomainSpec = AnyDomain <$ atomSpec "any"
+domainPatSpec :: ValueSpec DomainPattern
+domainPatSpec = DomainPattern [DomGlobStar] <$ atomSpec "any"
             <!> customSpec "Absolute domain (with trailing dot). A leading wildcard like \"*.foo\" or \"*\" is allowed"
                             textSpec
-                            (first T.pack . parseAbsDomainSpec)
+                            (first T.pack . parseDomainPattern)
 
 zoneIdSpec :: ValueSpec ZoneId
 zoneIdSpec = ZoneId <$> customSpec "Zone name (with trailing dot)."

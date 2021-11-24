@@ -13,7 +13,7 @@ import           Control.Monad (when)
 import           Data.Char (ord)
 import           Data.Foldable (toList, for_)
 
-import           Control.Monad.Logger (logError, runStdoutLoggingT, logDebugN)
+import           Control.Monad.Logger (logError, runStdoutLoggingT, logDebugN, logErrorN)
 import           Control.Monad.Reader (ask)
 import           Control.Monad.Trans.Except (ExceptT(ExceptT))
 import           Control.Monad.Trans.Reader (runReaderT)
@@ -45,6 +45,7 @@ import           PowerDNS.Guard.Config (Config(..))
 import           PowerDNS.Guard.Types
 import           PowerDNS.Guard.Utils
 import           PowerDNS.Guard.Permission
+import Control.Monad (filterM)
 
 
 server :: GuardedAPI AsGuard
@@ -75,18 +76,35 @@ notNull :: Foldable t => t a -> Bool
 notNull = not . null
 
 -- | Filters a list of RRSet to only those we have any permissions on
-filterRRSets :: ZoneId -> [ElaboratedPermission] -> [PDNS.RRSet] -> [PDNS.RRSet]
-filterRRSets zone eperms = filter (\rrset -> notNull (filterDomainPermsRRSet zone rrset eperms))
+filterRRSets :: ZoneId -> [ElabDomainPerm] -> [PDNS.RRSet] -> GuardM [PDNS.RRSet]
+filterRRSets zone eperms = filterM (\rrset -> notNull <$> filterDomainPermsRRSet zone rrset eperms)
 
-filterDomainPermsRRSet :: ZoneId -> PDNS.RRSet -> [ElaboratedPermission] -> [ElaboratedPermission]
-filterDomainPermsRRSet zone rrset eperms = filterDomainPerms zone (Domain (PDNS.rrset_name rrset)) (PDNS.rrset_type rrset) eperms
+filterDomainPermsRRSet :: ZoneId -> PDNS.RRSet -> [ElabDomainPerm] -> GuardM [ElabDomainPerm]
+filterDomainPermsRRSet zone rrset eperms = do
+  let nam = PDNS.rrset_name rrset
+  labels <- notePanic (hush (parseAbsDomainLabels nam))
+                      ("failed to parse rrset: " <> nam)
+
+  pure $ filterDomainPerms zone labels (PDNS.rrset_type rrset) eperms
 
 -- | Ensure the account has sufficient permissions for this RRset
-ensureHasRecordPermissions :: [ElaboratedPermission] -> ZoneId -> PDNS.RRSet -> GuardM ()
+ensureHasRecordPermissions :: [ElabDomainPerm] -> ZoneId -> PDNS.RRSet -> GuardM ()
 ensureHasRecordPermissions eperms zone rrset = do
-    let matching = filterDomainPermsRRSet zone rrset eperms
+    matching <- filterDomainPermsRRSet zone rrset eperms
     when (null matching) forbidden
-    logDebugN ("Matching permissions:\n" <> T.pack (unlines (show <$> matching)))
+    logDebugN ("Matching permissions:\n" <> T.unlines (showT <$> matching))
+
+showT :: Show a => a -> T.Text
+showT = T.pack . show
+
+filterZone :: [ElabDomainPerm] -> PDNS.Zone -> GuardM PDNS.Zone
+filterZone eperms zone = do
+    name <- notePanic (PDNS.zone_name zone) ("Missing zone name: " <> showT zone)
+
+    filtered <- maybe (pure Nothing)
+                      (fmap Just . filterRRSets (ZoneId name) eperms)
+                      (PDNS.zone_rrsets zone)
+    pure $ zone { PDNS.zone_rrsets = filtered }
 
 guardedZones :: Account -> PDNS.ZonesAPI AsGuard
 guardedZones acc = PDNS.ZonesAPI
@@ -95,9 +113,7 @@ guardedZones acc = PDNS.ZonesAPI
     , PDNS.apiGetZone       = \srv zone rrs -> do
         case zoneViewPerm acc (ZoneId zone) of
           Nothing -> forbidden
-          Just Filtered -> do
-            r <- runProxy (PDNS.getZone srv zone rrs)
-            pure r { PDNS.zone_rrsets = fmap (filterRRSets (ZoneId zone) eperms) (PDNS.zone_rrsets r) }
+          Just Filtered -> filterZone eperms =<< runProxy (PDNS.getZone srv zone rrs)
           Just Unfiltered -> runProxy (PDNS.getZone srv zone rrs)
 
     , PDNS.apiDeleteZone    = const2 forbidden
@@ -115,8 +131,8 @@ guardedZones acc = PDNS.ZonesAPI
     , PDNS.apiRectifyZone   = const2 forbidden
     }
   where
-    eperms :: [ElaboratedPermission]
-    eperms = elaboratePermissions acc
+    eperms :: [ElabDomainPerm]
+    eperms = elaborateDomainPerms acc
 
 guardedMetadata :: Account -> PDNS.MetadataAPI AsGuard
 guardedMetadata _ = PDNS.MetadataAPI
@@ -204,6 +220,12 @@ mkApp cfg = do
   let env = Env clientEnv
 
   pure (genericServeTWithContext (toHandler env) server (ourContext cfg))
+
+hush :: Either a b -> Maybe b
+hush = either (const Nothing) Just
+
+notePanic :: Maybe a -> T.Text -> GuardM a
+notePanic m t = maybe (logErrorN t >> throwIO err500) pure m
 
 -- | A custom authentication handler as per https://docs.servant.dev/en/stable/tutorial/Authentication.html#generalized-authentication
 authHandler :: Config -> AuthHandler Request Account
