@@ -1,5 +1,5 @@
-module PowerDNS.Guard.Account
-  ( Account(..)
+module PowerDNS.Guard.User
+  ( User(..)
   , authenticate
   )
 where
@@ -10,19 +10,19 @@ import Libsodium
 import qualified Data.ByteString.Char8 as B8
 import Data.Foldable (find)
 
-import PowerDNS.Guard.Account.Types
+import PowerDNS.Guard.User.Types
 
-authenticate :: [Account] -> T.Text -> B8.ByteString -> IO (Maybe Account)
+authenticate :: [User] -> T.Text -> B8.ByteString -> IO (Maybe User)
 authenticate db name pass = maybe (pure Nothing)
                                   verify
                                   (find matchingName db)
   where
-    matchingName :: Account -> Bool
-    matchingName ac = _acName ac == name
+    matchingName :: User -> Bool
+    matchingName ac = _uName ac == name
   
-    verify :: Account -> IO (Maybe Account)
+    verify :: User -> IO (Maybe User)
     verify ac = do
-      valid <- verifyArgon2id pass (_acPassHash ac)
+      valid <- verifyArgon2id pass (_uPassHash ac)
       if valid
         then pure (Just ac)
         else pure Nothing

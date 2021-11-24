@@ -14,10 +14,10 @@ import Servant.API
 import Servant.API.Generic
 import Servant.Server.Experimental.Auth (AuthServerData)
 
-import PowerDNS.Guard.Account
+import PowerDNS.Guard.User
 import Data.Proxy
 
-type instance AuthServerData (AuthProtect "xapi") = Account
+type instance AuthServerData (AuthProtect "xapi") = User
 
 type API = ToServantApi GuardedAPI
 

@@ -29,7 +29,7 @@ import           Network.HTTP.Types (Status(Status))
 import           Network.Wai (Request (requestHeaders))
 import qualified PowerDNS.API as PDNS
 import qualified PowerDNS.Client as PDNS
-import           PowerDNS.Guard.Account
+import           PowerDNS.Guard.User
 import           Servant (Context(..), throwError)
 import           Servant.Client (ClientM, runClientM, ClientError (FailureResponse))
 import           Servant.Client (parseBaseUrl)
@@ -58,12 +58,12 @@ server = GuardedAPI
   , tsigkeys   = genericServerT . guardedTSIGKeys
   }
 
-guardedVersions :: Account -> PDNS.VersionsAPI AsGuard
+guardedVersions :: User -> PDNS.VersionsAPI AsGuard
 guardedVersions _ = PDNS.VersionsAPI
   { PDNS.apiListVersions = runProxy PDNS.listVersions
   }
 
-guardedServers :: Account -> PDNS.ServersAPI AsGuard
+guardedServers :: User -> PDNS.ServersAPI AsGuard
 guardedServers _ = PDNS.ServersAPI
   { PDNS.apiListServers = const0 forbidden
   , PDNS.apiGetServer   = const1 forbidden
@@ -87,7 +87,7 @@ filterDomainPermsRRSet zone rrset eperms = do
 
   pure $ filterDomainPerms zone labels (PDNS.rrset_type rrset) eperms
 
--- | Ensure the account has sufficient permissions for this RRset
+-- | Ensure the user has sufficient permissions for this RRset
 ensureHasRecordPermissions :: [ElabDomainPerm] -> ZoneId -> PDNS.RRSet -> GuardM ()
 ensureHasRecordPermissions eperms zone rrset = do
     matching <- filterDomainPermsRRSet zone rrset eperms
@@ -106,7 +106,7 @@ filterZone eperms zone = do
                       (PDNS.zone_rrsets zone)
     pure $ zone { PDNS.zone_rrsets = filtered }
 
-guardedZones :: Account -> PDNS.ZonesAPI AsGuard
+guardedZones :: User -> PDNS.ZonesAPI AsGuard
 guardedZones acc = PDNS.ZonesAPI
     { PDNS.apiListZones     = const3 forbidden
     , PDNS.apiCreateZone    = const3 forbidden
@@ -134,7 +134,7 @@ guardedZones acc = PDNS.ZonesAPI
     eperms :: [ElabDomainPerm]
     eperms = elaborateDomainPerms acc
 
-guardedMetadata :: Account -> PDNS.MetadataAPI AsGuard
+guardedMetadata :: User -> PDNS.MetadataAPI AsGuard
 guardedMetadata _ = PDNS.MetadataAPI
   { PDNS.apiListMetadata   = const2 forbidden
   , PDNS.apiCreateMetadata = const3 forbidden
@@ -143,7 +143,7 @@ guardedMetadata _ = PDNS.MetadataAPI
   , PDNS.apiDeleteMetadata = const3 forbidden
   }
 
-guardedTSIGKeys :: Account -> PDNS.TSIGKeysAPI AsGuard
+guardedTSIGKeys :: User -> PDNS.TSIGKeysAPI AsGuard
 guardedTSIGKeys _ = PDNS.TSIGKeysAPI
   { PDNS.apiListTSIGKeys  = const1 forbidden
   , PDNS.apiCreateTSIGKey = const2 forbidden
@@ -152,7 +152,7 @@ guardedTSIGKeys _ = PDNS.TSIGKeysAPI
   , PDNS.apiDeleteTSIGKey = const2 forbidden
   }
 
-guardedCryptokeys :: Account -> PDNS.CryptokeysAPI AsGuard
+guardedCryptokeys :: User -> PDNS.CryptokeysAPI AsGuard
 guardedCryptokeys _ = PDNS.CryptokeysAPI
     { PDNS.apiListCryptokeys  = const2 forbidden
     , PDNS.apiCreateCryptokey = const3 forbidden
@@ -177,9 +177,6 @@ runProxy act = do
 
 forbidden :: GuardM a
 forbidden = throwIO err403
-
-forbiddenWhy :: BSL.ByteString -> GuardM a
-forbiddenWhy reason = throwIO err403{ errBody = reason }
 
 -- | A natural transformation turning a GuardM into a plain Servant handler.
 -- See https://docs.servant.dev/en/stable/cookbook/using-custom-monad/UsingCustomMonad.html
@@ -228,11 +225,11 @@ notePanic :: Maybe a -> T.Text -> GuardM a
 notePanic m t = maybe (logErrorN t >> throwIO err500) pure m
 
 -- | A custom authentication handler as per https://docs.servant.dev/en/stable/tutorial/Authentication.html#generalized-authentication
-authHandler :: Config -> AuthHandler Request Account
+authHandler :: Config -> AuthHandler Request User
 authHandler cfg = mkAuthHandler handler
   where
-    db :: [Account]
-    db = cfgAccounts cfg
+    db :: [User]
+    db = cfgUsers cfg
 
     note401 :: Maybe a -> BSL.ByteString -> Handler a
     note401 m reason = maybe (throw401 reason) pure m
@@ -248,11 +245,11 @@ authHandler cfg = mkAuthHandler handler
     handler req = do
         apiKey <- lookup "X-API-Key" (requestHeaders req) `note401` "Missing API key"
         case BS.split (fromIntegral (ord ':')) apiKey of
-            [user, hash] -> do mAccount <- liftIO $ authenticate db (decodeLenient user) hash
-                               mAccount `note401` "Bad authentication"
+            [user, hash] -> do mUser <- liftIO $ authenticate db (decodeLenient user) hash
+                               mUser `note401` "Bad authentication"
             _            -> throw400 "Invalid X-API-Key syntax"
 
 
-type CtxtList = AuthHandler Request Account ': '[]
+type CtxtList = AuthHandler Request User ': '[]
 ourContext :: Config -> Context CtxtList
 ourContext cfg = authHandler cfg :. EmptyContext

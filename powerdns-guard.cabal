@@ -49,8 +49,8 @@ library powerdns-guard-lib
                       PowerDNS.Guard.Config
 
     other-modules:    PowerDNS.Guard.API
-                      PowerDNS.Guard.Account
-                      PowerDNS.Guard.Account.Types
+                      PowerDNS.Guard.User
+                      PowerDNS.Guard.User.Types
                       PowerDNS.Guard.Types
                       PowerDNS.Guard.Utils
                       PowerDNS.Guard.Permission

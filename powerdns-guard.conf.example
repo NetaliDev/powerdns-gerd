@@ -2,7 +2,7 @@ upstreamApiBaseUrl: "https://powerdns.url/"
 upstreamApiKey: "secret"
 listenAddress: "*"
 listenPort: 9000
-accounts:
+users:
   * name: "user"
     passHash: "$argon2id$v=19$m=8,t=1,p=1$cjV5UDFCSHRSaXJ0am9PZg$OIscttF7A8I40AK9Zxa3Sw"
     zonePerms:

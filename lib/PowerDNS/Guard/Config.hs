@@ -23,7 +23,7 @@ import           UnliftIO.Exception (catch)
 import           Network.Wai.Handler.Warp (HostPreference)
 import qualified Text.PrettyPrint as Pretty
 
-import           PowerDNS.Guard.Account
+import           PowerDNS.Guard.User
 import PowerDNS.Guard.Permission
 import PowerDNS.API.Zones
 import qualified Data.Map as M
@@ -35,7 +35,7 @@ data Config = Config
   , cfgUpstreamApiKey :: T.Text
   , cfgListenAddress :: HostPreference
   , cfgListenPort :: Word16
-  , cfgAccounts :: [Account]
+  , cfgUsers :: [User]
   }
 
 optSectionDefault' :: a -> T.Text -> ValueSpec a -> T.Text -> SectionsSpec a
@@ -61,7 +61,7 @@ zoneMapItemSpec = sectionsSpec "zone" $ do
   zoneDomainPermissions <- optSectionDefault' [] "domains"
                                                  (listSpec absRecordPermSpec)
                                                  "List of records permissions"
-  zoneViewPermission <- optSection' "view" viewPermissionSpec "Whether or not this account can view this zone, and whether records should be filtered to those the user has permissions to"
+  zoneViewPermission <- optSection' "view" viewPermissionSpec "Whether or not this user can view this zone, and whether records should be filtered to those the user has permissions to"
 
   pure (zoneName, ZonePermissions{..})
 
@@ -141,25 +141,25 @@ configSpec = sectionsSpec "top-level" $ do
   cfgUpstreamApiKey <- reqSection "upstreamApiKey" "The upstream X-API-Key secret"
   cfgListenAddress <- reqSection' "listenAddress" hostPrefSpec "The IP address the proxy will bind on"
   cfgListenPort <- reqSection "listenPort" "The TCP port the proxy will bind on"
-  cfgAccounts <- reqSection' "accounts" (listSpec accountSpec) "Configured accounts"
+  cfgUsers <- reqSection' "users" (listSpec userSpec) "Configured users"
   pure Config{..}
 
-accountSpec :: ValueSpec Account
-accountSpec = sectionsSpec "account" $ do
-  _acName <- reqSection "name" "The name of the API account"
-  _acPassHash <- reqSection' "passHash"
+userSpec :: ValueSpec User
+userSpec = sectionsSpec "user" $ do
+  _uName <- reqSection "name" "The name of the API user"
+  _uPassHash <- reqSection' "passHash"
                             (T.encodeUtf8 <$> textSpec)
                             "Argon2id hash of the secret as a string in the original reference format, e.g.: $argon2id$v=19$m=65536,t=3,p=2$c29tZXNhbHQ$RdescudvJCsgt3ub+b+dWRWJTmaaJObG"
-  _acZonePerms <- optSectionDefault' mempty
+  _uZonePerms <- optSectionDefault' mempty
                                     "zones"
                                     (zoneMapSpec)
-                                    "Whether or not the account may list all zones of the server"
-  _acRecordPerms <- optSectionDefault' []
+                                    "Whether or not the user may list all zones of the server"
+  _uRecordPerms <- optSectionDefault' []
                                     "domains"
                                     (listSpec absRecordPermSpec)
                                     "Record permissions of absolute domains. This will grant a permission irrespective of the containing domain."
 
-  pure Account{..}
+  pure User{..}
 
 loadConfig :: FilePath -> IO Config
 loadConfig path = loadValueFromFile configSpec path `catch` onError

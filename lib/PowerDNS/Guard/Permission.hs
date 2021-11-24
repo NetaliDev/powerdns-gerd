@@ -11,7 +11,7 @@ where
 import qualified Data.Map as M
 
 import PowerDNS.Guard.Permission.Types
-import PowerDNS.Guard.Account
+import PowerDNS.Guard.User
 import Control.Monad (join)
 import PowerDNS.API (RecordType)
 import qualified Data.Text as T
@@ -35,15 +35,15 @@ matchesAllowSpec :: RecordType -> AllowSpec -> Bool
 matchesAllowSpec _ MayModifyAnyRecordType = True
 matchesAllowSpec rt (MayModifyRecordType xs) = rt `elem` xs
 
-zoneViewPerm :: Account -> ZoneId -> Maybe ViewPermission
-zoneViewPerm acc zone = join (zoneViewPermission <$> M.lookup zone (_acZonePerms acc))
+zoneViewPerm :: User -> ZoneId -> Maybe ViewPermission
+zoneViewPerm acc zone = join (zoneViewPermission <$> M.lookup zone (_uZonePerms acc))
 
-elaborateDomainPerms :: Account -> [ElabDomainPerm]
+elaborateDomainPerms :: User -> [ElabDomainPerm]
 elaborateDomainPerms acc = permsWithoutZoneId <> permsWithZoneId
   where
     permsWithoutZoneId :: [ElabDomainPerm]
     permsWithoutZoneId = do
-      (pat, allowed) <- _acRecordPerms acc
+      (pat, allowed) <- _uRecordPerms acc
       pure ElabDomainPerm{ epZone = Nothing
                                , epDomainPat = pat
                                , epAllowed = allowed
@@ -51,7 +51,7 @@ elaborateDomainPerms acc = permsWithoutZoneId <> permsWithZoneId
 
     permsWithZoneId :: [ElabDomainPerm]
     permsWithZoneId = do
-      (zone, perms) <- M.toList (_acZonePerms acc)
+      (zone, perms) <- M.toList (_uZonePerms acc)
       (pat, allowed) <- zoneDomainPermissions perms
       pure ElabDomainPerm{ epZone = Just zone
                                , epDomainPat = pat
