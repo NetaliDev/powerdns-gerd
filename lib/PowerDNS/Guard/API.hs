@@ -19,15 +19,16 @@ import Data.Proxy
 
 type instance AuthServerData (AuthProtect "xapi") = Account
 
-type API = "api" :> "v1" :> ToServantApi GuardedAPI
+type API = ToServantApi GuardedAPI
 
 api :: Proxy API
 api = Proxy
 
 data GuardedAPI f = GuardedAPI
-  { servers    :: f :- AuthProtect "xapi" :> ToServantApi PDNS.ServersAPI
-  , zones      :: f :- AuthProtect "xapi" :> ToServantApi PDNS.ZonesAPI
-  , cryptokeys :: f :- AuthProtect "xapi" :> ToServantApi PDNS.CryptokeysAPI
-  , metadata   :: f :- AuthProtect "xapi" :> ToServantApi PDNS.MetadataAPI
-  , tsigkeys   :: f :- AuthProtect "xapi" :> ToServantApi PDNS.TSIGKeysAPI
+  { versions   :: f :- AuthProtect "xapi" :> "api" :> ToServantApi PDNS.VersionsAPI
+  , servers    :: f :- AuthProtect "xapi" :> "api" :> "v1" :> ToServantApi PDNS.ServersAPI
+  , zones      :: f :- AuthProtect "xapi" :> "api" :> "v1" :> ToServantApi PDNS.ZonesAPI
+  , cryptokeys :: f :- AuthProtect "xapi" :> "api" :> "v1" :> ToServantApi PDNS.CryptokeysAPI
+  , metadata   :: f :- AuthProtect "xapi" :> "api" :> "v1" :> ToServantApi PDNS.MetadataAPI
+  , tsigkeys   :: f :- AuthProtect "xapi" :> "api" :> "v1" :> ToServantApi PDNS.TSIGKeysAPI
   } deriving Generic

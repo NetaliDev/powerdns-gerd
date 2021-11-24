@@ -30,13 +30,13 @@ import           Network.Wai (Request (requestHeaders))
 import qualified PowerDNS.API as PDNS
 import qualified PowerDNS.Client as PDNS
 import           PowerDNS.Guard.Account
-import           Servant (Context(..), throwError, HasServer (hoistServerWithContext))
+import           Servant (Context(..), throwError)
 import           Servant.Client (ClientM, runClientM, ClientError (FailureResponse))
 import           Servant.Client (parseBaseUrl)
 import           Servant.Client.Streaming (ResponseF(Response), mkClientEnv)
-import           Servant.Server (Application, ServerError(..), err500, err403, Handler(..), err401, err400, HasServer (ServerT), serveWithContext)
+import           Servant.Server (Application, ServerError(..), err500, err403, Handler(..), err401, err400)
 import           Servant.Server.Experimental.Auth (AuthHandler, mkAuthHandler)
-import           Servant.Server.Generic (genericServerT)
+import           Servant.Server.Generic (genericServerT, genericServeTWithContext)
 import           UnliftIO (throwIO, liftIO)
 import qualified UnliftIO.Exception as E
 
@@ -45,19 +45,21 @@ import           PowerDNS.Guard.Config (Config(..))
 import           PowerDNS.Guard.Types
 import           PowerDNS.Guard.Utils
 import           PowerDNS.Guard.Permission
-import Data.Data (Proxy(..))
 
-
-topServer :: ServerT API GuardM
-topServer = genericServerT server
 
 server :: GuardedAPI AsGuard
 server = GuardedAPI
-  { servers    = genericServerT . guardedServers
+  { versions   = genericServerT . guardedVersions
+  , servers    = genericServerT . guardedServers
   , zones      = genericServerT . guardedZones
   , cryptokeys = genericServerT . guardedCryptokeys
   , metadata   = genericServerT . guardedMetadata
   , tsigkeys   = genericServerT . guardedTSIGKeys
+  }
+
+guardedVersions :: Account -> PDNS.VersionsAPI AsGuard
+guardedVersions _ = PDNS.VersionsAPI
+  { PDNS.apiListVersions = runProxy PDNS.listVersions
   }
 
 guardedServers :: Account -> PDNS.ServersAPI AsGuard
@@ -194,8 +196,7 @@ mkApp cfg = do
   let clientEnv =  PDNS.applyXApiKey (cfgUpstreamApiKey cfg) (mkClientEnv mgr url)
   let env = Env clientEnv
 
-  pure (serveWithContext api (ourContext cfg) $
-        hoistServerWithContext api (Proxy :: Proxy CtxtList) (toHandler env) topServer)
+  pure (genericServeTWithContext (toHandler env) server (ourContext cfg))
 
 -- | A custom authentication handler as per https://docs.servant.dev/en/stable/tutorial/Authentication.html#generalized-authentication
 authHandler :: Config -> AuthHandler Request Account

@@ -84,6 +84,11 @@ assertFailureCode expectedCode prefix (Left err) = do
             actual = responseStatusCode resp
         r -> assertString (prefix <> ": returned with an unexpected error: " <> show r)
 
+versionTests :: TestEnv -> TestTree
+versionTests te = testGroup "Versions access"
+  [ doubleTest "listing api versions" assertOk listVersions te
+  ]
+
 zoneTests :: TestEnv -> TestTree
 zoneTests te = testGroup "Zone access"
   [ tripleTest "user-without-permissions" "listing zones" assertForbidden (listZones srvName Nothing Nothing) te
@@ -98,8 +103,14 @@ zoneTests te = testGroup "Zone access"
   , tripleTest "user-without-permissions" "rectifying a zone" assertForbidden (rectifyZone srvName ourZone) te
   ]
 
-
 type Asserter a = Either ClientError a -> Assertion
+
+-- | Run this action first as unauthenticated, then as authenticated lacking any permission. The provided asserter is used for the authenticated user.
+doubleTest :: String -> Asserter a -> ClientM a -> TestEnv -> TestTree
+doubleTest title asserter action te = testGroup title
+  [ testCase "without authentication" $ assertUnauthenticated =<< runUnauth action te
+  , testCase "without permissions" $ asserter =<< runWithout action te
+  ]
 
 -- | Run this action first as unauthenticated, as authenticated lacking permission and finally as authenticated with some permissions. The provided
 -- asserter is used when a user with some permission is used. For the other two cases 'assertForbidden' and 'assertUnauthenticated' are used.
@@ -236,7 +247,8 @@ runUnauth act = runClientM act . teGuardedEnv
 
 tests :: TestEnv -> TestTree
 tests te = testGroup "PowerDNS tests"
-    [ zoneTests te
+    [ versionTests te
+    , zoneTests te
     ] 
 
 main :: IO ()
@@ -247,7 +259,7 @@ main = do
     let guardedUrl = BaseUrl Http "127.0.0.1" port ""
         upstreamUrl = BaseUrl Http "127.0.0.1" 8081 ""
         guardedEnv = mkClientEnv mgr guardedUrl
-        upstreamEnv = applyXApiKey "foobar" (mkClientEnv mgr upstreamUrl)
+        upstreamEnv = applyXApiKey "secret" (mkClientEnv mgr upstreamUrl)
         testEnv = TestEnv guardedEnv upstreamEnv
     
     unsafeCleanZones testEnv
