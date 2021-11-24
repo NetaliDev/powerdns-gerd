@@ -9,11 +9,11 @@ module PowerDNS.Guard.Server
   )
 where
 
-import           Control.Monad (unless, when)
+import           Control.Monad (when)
 import           Data.Char (ord)
 import           Data.Foldable (toList, for_)
 
-import           Control.Monad.Logger (logError, runStdoutLoggingT)
+import           Control.Monad.Logger (logError, runStdoutLoggingT, logDebugN)
 import           Control.Monad.Reader (ask)
 import           Control.Monad.Trans.Except (ExceptT(ExceptT))
 import           Control.Monad.Trans.Reader (runReaderT)
@@ -71,36 +71,40 @@ guardedServers _ = PDNS.ServersAPI
   , PDNS.apiStatistics  = const3 forbidden
   }
 
-getDomainPerms :: Account -> ZoneId -> Domain Absolute -> GuardM [DomainPermission]
-getDomainPerms acc zone rel =
-        maybe (forbiddenWhy "No permissions exist for this domain")
-            pure
-            (emptyToNothing (domainPerms acc zone rel))
-    where
-        emptyToNothing :: [a] -> Maybe [a]
-        emptyToNothing [] = Nothing
-        emptyToNothing xs = Just xs
+notNull :: Foldable t => t a -> Bool
+notNull = not . null
+
+-- | Filters a list of RRSet to only those we have any permissions on
+filterRRSets :: ZoneId -> [ElaboratedPermission] -> [PDNS.RRSet] -> [PDNS.RRSet]
+filterRRSets zone eperms = filter (\rrset -> notNull (filterDomainPermsRRSet zone rrset eperms))
+
+filterDomainPermsRRSet :: ZoneId -> PDNS.RRSet -> [ElaboratedPermission] -> [ElaboratedPermission]
+filterDomainPermsRRSet zone rrset eperms = filterDomainPerms zone (Domain (PDNS.rrset_name rrset)) (PDNS.rrset_type rrset) eperms
 
 -- | Ensure the account has sufficient permissions for this RRset
-ensureMayModifyRRset :: Account -> ZoneId -> PDNS.RRSet -> GuardM ()
-ensureMayModifyRRset acc zone (PDNS.RRSet{PDNS.rrset_name = dom, PDNS.rrset_type = rtype}) = do
-    perms <- getDomainPerms acc zone (Domain dom)
-    unless (any matchingPerm perms) $
-        forbiddenWhy "No permissions for this record type"
-  where
-    matchingPerm (MayModifyRecordType xs) = rtype `elem` xs
-    matchingPerm MayModifyAnyRecordType = True
+ensureHasRecordPermissions :: [ElaboratedPermission] -> ZoneId -> PDNS.RRSet -> GuardM ()
+ensureHasRecordPermissions eperms zone rrset = do
+    let matching = filterDomainPermsRRSet zone rrset eperms
+    when (null matching) forbidden
+    logDebugN ("Matching permissions:\n" <> T.pack (unlines (show <$> matching)))
 
 guardedZones :: Account -> PDNS.ZonesAPI AsGuard
 guardedZones acc = PDNS.ZonesAPI
     { PDNS.apiListZones     = const3 forbidden
     , PDNS.apiCreateZone    = const3 forbidden
-    , PDNS.apiGetZone       = const3 forbidden
+    , PDNS.apiGetZone       = \srv zone rrs -> do
+        case zoneViewPerm acc (ZoneId zone) of
+          Nothing -> forbidden
+          Just Filtered -> do
+            r <- runProxy (PDNS.getZone srv zone rrs)
+            pure r { PDNS.zone_rrsets = fmap (filterRRSets (ZoneId zone) eperms) (PDNS.zone_rrsets r) }
+          Just Unfiltered -> runProxy (PDNS.getZone srv zone rrs)
+
     , PDNS.apiDeleteZone    = const2 forbidden
     , PDNS.apiUpdateRecords = \srv zone rrs -> do
         when (null $ PDNS.rrsets rrs) forbidden
         for_ (PDNS.rrsets rrs) $ \rrset -> do
-            ensureMayModifyRRset acc (ZoneId zone) rrset
+            ensureHasRecordPermissions eperms (ZoneId zone) rrset
         runProxy (PDNS.updateRecords srv zone rrs)
 
 
@@ -110,6 +114,9 @@ guardedZones acc = PDNS.ZonesAPI
     , PDNS.apiGetZoneAxfr   = const2 forbidden
     , PDNS.apiRectifyZone   = const2 forbidden
     }
+  where
+    eperms :: [ElaboratedPermission]
+    eperms = elaboratePermissions acc
 
 guardedMetadata :: Account -> PDNS.MetadataAPI AsGuard
 guardedMetadata _ = PDNS.MetadataAPI

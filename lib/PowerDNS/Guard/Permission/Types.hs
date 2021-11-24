@@ -8,8 +8,12 @@ module PowerDNS.Guard.Permission.Types
   , Domain(..)
   , DomainSpec(..)
   , RecordTypeSpec(..)
-  , DomainPermission(..)
+  , AllowSpec(..)
   , PermissionList
+  , ElaboratedPermission(..)
+  , ViewPermission(..)
+  , ZonePermissions(..)
+  , Authorization(..)
   )
 where
 
@@ -35,8 +39,25 @@ data RecordTypeSpec
   | AnyOf [RecordType]
   deriving Show
 
-type PermissionList (k :: DomainKind) = [(DomainSpec k, DomainPermission)]
+data ViewPermission = Filtered | Unfiltered
+  deriving Show
 
-data DomainPermission = MayModifyRecordType [RecordType]
-                      | MayModifyAnyRecordType
-                      deriving (Eq, Ord, Show)
+data ZonePermissions = ZonePermissions
+  { zoneDomainPermissions :: PermissionList
+  , zoneViewPermission :: Maybe ViewPermission
+  } deriving Show
+
+type PermissionList = [(DomainSpec Absolute, AllowSpec)]
+
+data Authorization = Forbidden | Authorized
+
+-- | A domain permission that might be constrained to a particular zone
+data ElaboratedPermission = ElaboratedPermission
+  { epZone :: Maybe ZoneId
+  , epDomain :: DomainSpec Absolute
+  , epAllowed :: AllowSpec
+  } deriving Show
+
+data AllowSpec = MayModifyRecordType [RecordType]
+               | MayModifyAnyRecordType
+               deriving (Eq, Ord, Show)

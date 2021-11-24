@@ -12,6 +12,6 @@ import qualified Data.Text as T
 data Account = Account
   { _acName :: T.Text
   , _acPassHash :: B8.ByteString
-  , _acZonePerms :: M.Map ZoneId (PermissionList Relative)
-  , _acRecordPerms :: PermissionList Absolute
+  , _acZonePerms :: M.Map ZoneId ZonePermissions
+  , _acRecordPerms :: PermissionList
   } deriving Show

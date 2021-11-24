@@ -41,44 +41,37 @@ data Config = Config
 optSectionDefault' :: a -> T.Text -> ValueSpec a -> T.Text -> SectionsSpec a
 optSectionDefault' def sect spec descr = fromMaybe def <$> optSection' sect spec descr
 
-absRecordPermSpec :: ValueSpec (DomainSpec Absolute, DomainPermission)
+absRecordPermSpec :: ValueSpec (DomainSpec Absolute, AllowSpec)
 absRecordPermSpec = sectionsSpec "abs-record-spec" $ do
   n <- reqSection' "name" absDomainSpec "The record name(s) that can be managed. Must be absolute with a trailing dot."
   t <- reqSection' "types" recordTypeSpec "The record types that can be managed."
   pure (n, t)
 
-zoneRecordPermSpec :: ValueSpec (DomainSpec Relative, DomainPermission)
-zoneRecordPermSpec = sectionsSpec "zone-record-spec" $ do
-  n <- reqSection' "name" relDomainSpec "The record name(s) that can be managed. Must be relative to the zone name."
-  t <- reqSection' "types" recordTypeSpec "The record types that can be managed."
-  pure (n, t)
+zoneMapSpec :: ValueSpec (M.Map ZoneId ZonePermissions)
+zoneMapSpec = M.fromList <$> listSpec zoneMapItemSpec
 
-zonePermSpec :: ValueSpec (ZoneId, PermissionList Relative)
-zonePermSpec = sectionsSpec "zone-permission" $ do
-  zone <- reqSection' "zone" zoneIdSpec "DNS name of the zone"
-  perms <- optSectionDefault' []
-                                         "domainPerms"
-                                         (listSpec zoneRecordPermSpec)
-                                         "List of records the user can manage in this zone"
+viewPermissionSpec :: ValueSpec ViewPermission
+viewPermissionSpec = Filtered <$ atomSpec "filtered"
+                 <!> Unfiltered <$ atomSpec "unfiltered"
 
-  pure (zone, perms)
+zoneMapItemSpec :: ValueSpec (ZoneId, ZonePermissions)
+zoneMapItemSpec = sectionsSpec "zone" $ do
+  zoneName <- reqSection' "zone" zoneIdSpec "The name of the zone"
 
-zonePermMapSpec :: ValueSpec (M.Map ZoneId (PermissionList Relative))
-zonePermMapSpec = M.fromList <$> listSpec zonePermSpec
+  zoneDomainPermissions <- optSectionDefault' [] "domainPerms"
+                                                 (listSpec absRecordPermSpec)
+                                                 "List of records permissions"
+  zoneViewPermission <- optSection' "view" viewPermissionSpec "Whether or not this account can view this zone, and whether records should be filtered to those the user has permissions to"
 
-recordTypeSpec :: ValueSpec DomainPermission
+  pure (zoneName, ZonePermissions{..})
+
+recordTypeSpec :: ValueSpec AllowSpec
 recordTypeSpec = MayModifyAnyRecordType <$ atomSpec "any"
              <!> MayModifyRecordType <$> listSpec recordAtomSpec
 
-relDomainSpec :: ValueSpec (DomainSpec Relative)
-relDomainSpec = AnyDomain <$ atomSpec "any"
-            <!> customSpec "Absolute domain (with trailing dot). A leading wildcard like \"*.foo\" or \"*\" is allowed"
-                           textSpec
-                           (first T.pack . parseRelDomainSpec)
-
 absDomainSpec :: ValueSpec (DomainSpec Absolute)
 absDomainSpec = AnyDomain <$ atomSpec "any"
-            <!> customSpec "Relative domain (without trailing dot). A leading wildcard like \"*.foo\" or \"*\" is allowed"
+            <!> customSpec "Absolute domain (with trailing dot). A leading wildcard like \"*.foo\" or \"*\" is allowed"
                             textSpec
                             (first T.pack . parseAbsDomainSpec)
 
@@ -159,7 +152,7 @@ accountSpec = sectionsSpec "account" $ do
                             "Argon2id hash of the secret as a string in the original reference format, e.g.: $argon2id$v=19$m=65536,t=3,p=2$c29tZXNhbHQ$RdescudvJCsgt3ub+b+dWRWJTmaaJObG"
   _acZonePerms <- optSectionDefault' mempty
                                     "zonePerms"
-                                    (zonePermMapSpec)
+                                    (zoneMapSpec)
                                     "Whether or not the account may list all zones of the server"
   _acRecordPerms <- optSectionDefault' []
                                     "domainPerms"
