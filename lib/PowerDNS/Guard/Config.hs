@@ -52,13 +52,13 @@ zoneMapSpec = M.fromList <$> listSpec zoneMapItemSpec
 
 viewPermissionSpec :: ValueSpec ViewPermission
 viewPermissionSpec = Filtered <$ atomSpec "filtered"
-                 <!> Unfiltered <$ atomSpec "unfiltered"
+                 <!> Unfiltered <$ atomSpec "unsafeUnfiltered"
 
 zoneMapItemSpec :: ValueSpec (ZoneId, ZonePermissions)
 zoneMapItemSpec = sectionsSpec "zone" $ do
   zoneName <- reqSection' "zone" zoneIdSpec "The name of the zone"
 
-  zoneDomainPermissions <- optSectionDefault' [] "domainPerms"
+  zoneDomainPermissions <- optSectionDefault' [] "domains"
                                                  (listSpec absRecordPermSpec)
                                                  "List of records permissions"
   zoneViewPermission <- optSection' "view" viewPermissionSpec "Whether or not this account can view this zone, and whether records should be filtered to those the user has permissions to"
@@ -151,11 +151,11 @@ accountSpec = sectionsSpec "account" $ do
                             (T.encodeUtf8 <$> textSpec)
                             "Argon2id hash of the secret as a string in the original reference format, e.g.: $argon2id$v=19$m=65536,t=3,p=2$c29tZXNhbHQ$RdescudvJCsgt3ub+b+dWRWJTmaaJObG"
   _acZonePerms <- optSectionDefault' mempty
-                                    "zonePerms"
+                                    "zones"
                                     (zoneMapSpec)
                                     "Whether or not the account may list all zones of the server"
   _acRecordPerms <- optSectionDefault' []
-                                    "domainPerms"
+                                    "domains"
                                     (listSpec absRecordPermSpec)
                                     "Record permissions of absolute domains. This will grant a permission irrespective of the containing domain."
 
