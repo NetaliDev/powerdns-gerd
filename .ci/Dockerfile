@@ -14,6 +14,6 @@ ADD ./pdns.conf /etc/pdns/
 RUN mkdir -p /var/empty/var/run/ && \
     chmod +x /entrypoint.sh
 
-EXPOSE 53/udp 53/tcp
+EXPOSE 53/udp 53/tcp 8081/tcp
 
 CMD ["/entrypoint.sh"]

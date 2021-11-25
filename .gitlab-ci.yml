@@ -12,17 +12,32 @@ build:linux:
   stage: build
   tags:
     - haskell
+  artifacts:
+    paths:
+      - build/powerdns-guard-test
   script:
-    - cabal build -j4 powerdns-guard:exe:powerdns-guard
+    - mkdir build/
+    - cabal build -j4 --enable-tests powerdns-guard
+    - cabal build -j4 --enable-tests powerdns-guard:test:powerdns-guard-test
+    - cp $(cabal -v0 list-bin --enable-tests powerdns-guard:test:powerdns-guard-test) build/powerdns-guard-test
 
 test:
+  image: ubuntu:focal
+  variables:
+    DEBIAN_FRONTEND: "noninteractive"
+  dependencies:
+    - build:linux
   services:
-    - registry.gitlab.com/wobcom/haskell/powerdns-guard:pdns-service
+    - name: registry.gitlab.com/wobcom/haskell/powerdns-guard:pdns-service
+      alias: pdns
   cache:
     paths:
       - dist-newstyle/
   stage: test
   tags:
-    - haskell
+    - docker
   script:
-    - cabal test -j4 powerdns-guard:test:powerdns-guard-test
+    - apt update
+    - apt install --yes --no-install-recommends zlib1g libsodium23
+    - cd build/
+    - ./powerdns-guard-test
