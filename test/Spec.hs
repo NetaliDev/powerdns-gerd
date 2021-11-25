@@ -5,11 +5,13 @@ where
 
 import           Control.Exception (throwIO)
 import           Data.Foldable (for_)
-import           Data.Maybe (isJust)
-import qualified Data.Text as T
+import           Data.List (groupBy, sortOn)
+import           Data.Maybe (catMaybes, isJust)
 import           System.Environment (lookupEnv)
+import           System.IO (BufferMode(..), hSetBuffering, stderr, stdout)
 
 import           Data.CallStack
+import qualified Data.Text as T
 import           Network.HTTP.Client (defaultManagerSettings, newManager)
 import           Network.HTTP.Types (Status(statusCode))
 import           Network.Wai.Handler.Warp (testWithApplication)
@@ -97,7 +99,7 @@ zoneTests te = testGroup "Zone access"
   , tripleTest "user-without-permissions" "creating a zone" assertForbidden (createZone srvName Nothing empty) te
   , tripleTest "user-without-permissions" "getting a zone" assertForbidden  (getZone srvName ourZone Nothing) te
   , tripleTest "user-without-permissions" "deleting a zone" assertForbidden (deleteZone srvName ourZone) te
-  , testUpdatingRecords te
+  , testDomainMatrix te
   , tripleTest "user-without-permissions" "updating a zone" assertForbidden (updateZone srvName ourZone empty) te
   , tripleTest "user-without-permissions" "triggering axfr" assertForbidden (triggerAxfr srvName ourZone) te
   , tripleTest "user-without-permissions" "notifying slaves" assertForbidden (notifySlaves srvName ourZone) te
@@ -127,102 +129,109 @@ data Expected = ATXT
               | Any
               | None
 
-testUpdatingRecords :: TestEnv -> TestTree
-testUpdatingRecords te = testGroup "updating records" (mkTestCase <$> cases)
+testDomainMatrix :: TestEnv -> TestTree
+testDomainMatrix te = testGroup "updating records" $
+    do (zone, domain, ownership) <- domainMatrix
+       pure (testGroup ("on domain " <> T.unpack domain)
+             (mkTestCases zone domain ownership =<< existingUsers))
   where
-    mkTestCase :: (T.Text, T.Text, Expected) -> TestTree
-    mkTestCase (user, domain, expectancy) = testGroup (description <> " for domain " <> T.unpack domain) ts
+    mkTestCases :: T.Text -> T.Text -> Maybe (T.Text, Expected) -> T.Text -> [TestTree]
+    mkTestCases zone domain ownership user =
+        case ownership of
+          Nothing                        -> casesForExpected user None
+          Just (u, expected) | user == u -> casesForExpected user expected
+                             | otherwise -> casesForExpected user None
+
       where
-        description :: String
-        description = case expectancy of
-          ATXT -> "modify only A and TXT"
-          Any  -> "modify any record type"
-          None -> "modify no record type"
+        casesForExpected :: T.Text -> Expected -> [TestTree]
+        casesForExpected u expected = case expected of
+            ATXT -> [ withPresetZones te $ testCase (prefix <> " able to modify A records") (assertOk =<< runGuardedAs u (deleteRecords A domain) te)
+                    , withPresetZones te $ testCase (prefix <> " able to modify TXT records") (assertOk =<< runGuardedAs u (deleteRecords TXT domain) te)
+                    , withPresetZones te $ testCase (prefix <> " unable to modify AAAA records") (assertForbidden =<< runGuardedAs u (deleteRecords AAAA domain) te)
+                    ]
+            None -> [ withPresetZones te $ testCase (prefix <> " unable to modify A records") (assertForbidden =<< runGuardedAs u (deleteRecords A domain) te)
+                    , withPresetZones te $ testCase (prefix <> " unable to modify TXT records") (assertForbidden =<< runGuardedAs u (deleteRecords TXT domain) te)
+                    , withPresetZones te $ testCase (prefix <> " unable to modify AAAA records") (assertForbidden =<< runGuardedAs u (deleteRecords AAAA domain) te)
+                    ]
+            Any ->  [ withPresetZones te $ testCase (prefix <> " able to modify A records") (assertOk =<< runGuardedAs u (deleteRecords A domain) te)
+                    , withPresetZones te $ testCase (prefix <> " able to modify TXT records") (assertOk =<< runGuardedAs u (deleteRecords TXT domain) te)
+                    , withPresetZones te $ testCase (prefix <> " able to modify AAAA records") (assertOk =<< runGuardedAs u (deleteRecords AAAA domain) te)
+                    ]
+          where
+            prefix = "user \"" <> T.unpack u <> "\""
+
+        deleteRecords :: RecordType -> T.Text -> ClientM ()
+        deleteRecords ty na = () <$ updateRecords srvName zone (RRSets [changed])
+            where
+                changed :: RRSet
+                changed = RRSet { rrset_name = na
+                                , rrset_type = ty
+                                , rrset_ttl = 1234
+                                , rrset_changetype = Just Delete
+                                , rrset_records = Just []
+                                , rrset_comments = Just []
+                                }
+
+existingUsers :: [T.Text]
+existingUsers = "user-without-permissions" : (fst <$> catMaybes (trd3 <$> domainMatrix))
+
+-- | Each element represents a domain that will be created with
+-- an A, AAAA and TXT record. The second part of the tuple states
+-- the user that is expected to have modification power over that domain.
+-- The Expected element defines what the user is expected to be able to modify.
+--
+-- This matrix must be kept in sync with powerdns-guard.test.conf
+domainMatrix :: [(T.Text, T.Text, Maybe (T.Text, Expected))]
+domainMatrix =
+  [ ("a.user1.zone.", "rec1.a.user1.zone.", Just ("user1", ATXT))
+  , ("a.user1.zone.", "rec2.a.user1.zone.", Just ("user1", Any))
+  , ("a.user1.zone.", "unowned.a.user1.zone.", Nothing)
+  , ("a.user1.zone.", "sub.rec3.a.user1.zone.", Just ("user1", ATXT))
+  , ("a.user1.zone.", "sub.rec4.a.user1.zone.", Just ("user1", Any))
+
+  , ("b.user1.zone.", "rec1.b.user1.zone.", Just ("user1", ATXT))
+  , ("b.user1.zone.", "rec2.b.user1.zone.", Just ("user1", Any))
+  , ("b.user1.zone.", "unowned.b.user1.zone.", Nothing)
+  , ("b.user1.zone.", "sub.rec3.b.user1.zone.", Just ("user1", ATXT))
+  , ("b.user1.zone.", "sub.rec4.b.user1.zone.", Just ("user1", Any))
+
+  , ("user2.zone.", "sub.user2.zone.", Just ("user2", ATXT))
+  , ("user2.zone.", "user2.zone.", Just ("user2", ATXT))
+  , ("zone.", "globstar.user2.zone.", Nothing)
+  , ("zone.", "sub.globstar.user2.zone.", Just ("user2", ATXT))
+  , ("zone.", "sub.sub.globstar.user2.zone.", Just ("user2", ATXT))
+  , ("zone.", "alpha.glob.user2.zone.", Nothing)
+  , ("zone.", "sub.alpha.glob.user2.zone.", Just ("user2", ATXT))
+  , ("zone.", "sub.beta.glob.user2.zone.", Just ("user2", ATXT))
+  ]
 
 
-        ts :: [TestTree]
-        ts = case expectancy of
-          ATXT -> [ withPresetZone' te $ tripleTest user "able to modify A records" assertOk (deleteRecords A domain) te
-                  , withPresetZone' te $ tripleTest user "able to modify TXT records" assertOk (deleteRecords TXT domain) te
-                  , withPresetZone' te $ tripleTest user "unable to modify AAAA records" assertForbidden (deleteRecords AAAA domain) te
-                  ]
-          None ->  [ withPresetZone' te $ tripleTest user "unable to modify A records" assertForbidden (deleteRecords A domain) te
-                   , withPresetZone' te $ tripleTest user "unable to modify TXT records" assertForbidden (deleteRecords TXT domain) te
-                   , withPresetZone' te $ tripleTest user "unable to modify AAAA records" assertForbidden (deleteRecords AAAA domain) te
-                   ]
-          Any ->  [ withPresetZone' te $ tripleTest user "able to modify A records" assertOk (deleteRecords A domain) te
-                  , withPresetZone' te $ tripleTest user "able to modify TXT records" assertOk (deleteRecords TXT domain) te
-                  , withPresetZone' te $ tripleTest user "able to modify AAAA records" assertOk (deleteRecords AAAA domain) te
-                  ]
 
-    deleteRecords :: RecordType -> T.Text -> ClientM ()
-    deleteRecords ty na = () <$ updateRecords srvName ourZone (RRSets [changed])
-      where
-        changed :: RRSet
-        changed = RRSet { rrset_name = na <> "." <> ourZone
-                        , rrset_type = ty
-                        , rrset_ttl = 1234
-                        , rrset_changetype = Just Delete
-                        , rrset_records = Just []
-                        , rrset_comments = Just []
-                        }
-    -- List which record under our.zone. is expected to be modifiable via `user`.
-    -- This list should be kept in sync with powerdns-guard.test.conf.
-    cases :: [(T.Text, T.Text, Expected)]
-    cases =
-      [ ("user1", "sub.rec1", None)
-      , ("user1", "rec1", ATXT)
+fst3 :: (a, b, c) -> a
+fst3 (a, _, _) = a
 
-      , ("user1", "sub.rec2", None)
-      , ("user1", "rec2", Any)
+snd3 :: (a, b, c) -> b
+snd3 (_, b, _) = b
 
-      , ("user1", "sub.rec3", ATXT)
-      , ("user1", "rec3", None)
+trd3 :: (a, b, c) -> c
+trd3 (_, _, c) = c
 
-      , ("user1", "sub.rec4", Any)
-      , ("user1", "rec4", None)
-
-      , ("user2", "sub.rec5", ATXT)
-      , ("user2", "rec5", None)
-
-      , ("user2", "sub.rec6", Any)
-      , ("user2", "rec6", None)
-
-      , ("user2", "sub.rec7", None)
-      , ("user2", "rec7", ATXT)
-
-      , ("user2", "sub.rec8", None)
-      , ("user2", "rec8", Any)
-
-      , ("user3", "sub.rec1", ATXT)
-      , ("user4", "sub.rec1", ATXT)
-      ]
-
--- | Version of 'withPresetZone' that does not provide the Zone to the action
-withPresetZone' :: TestEnv -> TestTree -> TestTree
-withPresetZone' te act = withPresetZone te (const act)
-
-withPresetZone :: TestEnv -> (IO Zone -> TestTree) -> TestTree
-withPresetZone te = withResource unsafeMakeZone unsafeDeleteZone
+withPresetZones :: TestEnv -> TestTree -> TestTree
+withPresetZones te t = withResource unsafeMakeZones unsafeDeleteZones (const t)
   where
-    unsafeMakeZone = unsafeRunUpstream (createZone "localhost" (Just True) zone) te
-    zone = empty { zone_name = Just ourZone
-                 , zone_kind = Just Native
-                 , zone_type = Just "zone"
-                 , zone_rrsets = Just rrs
-                 }
 
-    rrs :: [RRSet]
-    rrs = makeRecords "rec0"
-       <> makeRecords "rec1"
-       <> makeRecords "rec2"
-       <> makeRecords "sub.rec3"
-       <> makeRecords "sub.rec4"
-       <> makeRecords "sub.rec5"
-       <> makeRecords "sub.rec6"
-       <> makeRecords "rec7"
-       <> makeRecords "rec8"
-       <> makeRecords "rec9"
+    byZones :: [[(T.Text, T.Text, Maybe (T.Text, Expected))]]
+    byZones = groupBy (\l r -> fst3 l == fst3 r) (sortOn fst3 domainMatrix)
+
+    unsafeMakeZones = for_ byZones $ \z -> do
+        let zoneName = fst3 (z !! 0)
+            zone :: Zone
+            zone = empty { zone_name = Just zoneName
+                         , zone_kind = Just Native
+                         , zone_type = Just "zone"
+                         , zone_rrsets = Just $ makeRecords =<< (snd3 <$> z)
+                         }
+        unsafeRunUpstream (createZone "localhost" (Just True) zone) te
 
     -- Generate A, AAAA and TXT records
     makeRecords :: T.Text -> [RRSet]
@@ -231,15 +240,17 @@ withPresetZone te = withResource unsafeMakeZone unsafeDeleteZone
                   , (AAAA, "::1")
                   , (TXT, "\"some txt\"") ]
 
-      pure $ RRSet { rrset_name = (na <> "." <> ourZone)
+      pure $ RRSet { rrset_name = na
                    , rrset_ttl = 86003
                    , rrset_type = ty
                    , rrset_changetype = Nothing
                    , rrset_records = Just [Record re False]
                    , rrset_comments = Nothing }
 
-    unsafeDeleteZone :: Zone -> IO ()
-    unsafeDeleteZone _z = () <$ unsafeRunUpstream (deleteZone "localhost" ourZone) te
+    unsafeDeleteZones :: () -> IO ()
+    unsafeDeleteZones _ = for_ byZones $ \zone -> do
+        let zoneName = fst3 (zone !! 0)
+        () <$ unsafeRunUpstream (deleteZone "localhost" zoneName) te
 
 runWithout :: ClientM a -> TestEnv -> IO (Either ClientError a)
 runWithout act = runGuardedAs "user-without-permissions" act
@@ -255,6 +266,8 @@ tests te = testGroup "PowerDNS tests"
 
 main :: IO ()
 main = do
+  hSetBuffering stdout LineBuffering
+  hSetBuffering stderr LineBuffering
   isCI <- isJust <$> lookupEnv "IN_GITLAB_CI"
 
   cfg <- loadConfig "./test/powerdns-guard.test.conf"
