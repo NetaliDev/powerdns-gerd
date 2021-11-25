@@ -254,7 +254,7 @@ tests te = testGroup "PowerDNS tests"
 main :: IO ()
 main = do
   cfg <- loadConfig "./test/powerdns-guard.test.conf"
-  testWithApplication (mkApp cfg) $ \port -> do
+  testWithApplication (mkApp 0 cfg) $ \port -> do
     mgr <- newManager defaultManagerSettings
     let guardedUrl = BaseUrl Http "127.0.0.1" port ""
         upstreamUrl = BaseUrl Http "pdns" 8081 ""

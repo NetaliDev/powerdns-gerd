@@ -13,8 +13,8 @@ import           Control.Monad (when)
 import           Data.Char (ord)
 import           Data.Foldable (for_, toList)
 
-import           Control.Monad.Logger (logDebugN, logError, logErrorN,
-                                       runStdoutLoggingT)
+import           Control.Monad.Logger (LoggingT, filterLogger, logDebugN,
+                                       logError, logErrorN, runStdoutLoggingT)
 import           Control.Monad.Reader (ask)
 import           Control.Monad.Trans.Except (ExceptT(ExceptT))
 import           Control.Monad.Trans.Reader (runReaderT)
@@ -40,7 +40,7 @@ import           Servant.Server (Application, Handler(..), ServerError(..),
 import           Servant.Server.Experimental.Auth (AuthHandler, mkAuthHandler)
 import           Servant.Server.Generic (genericServeTWithContext,
                                          genericServerT)
-import           UnliftIO (liftIO, throwIO)
+import           UnliftIO (MonadIO, liftIO, throwIO)
 import qualified UnliftIO.Exception as E
 
 import           Control.Monad (filterM)
@@ -180,6 +180,9 @@ runProxy act = do
 forbidden :: GuardM a
 forbidden = throwIO err403
 
+runLog :: MonadIO m => Int -> LoggingT m a -> m a
+runLog verbosity = runStdoutLoggingT . filterLogger (logFilter verbosity)
+
 -- | A natural transformation turning a GuardM into a plain Servant handler.
 -- See https://docs.servant.dev/en/stable/cookbook/using-custom-monad/UsingCustomMonad.html
 -- One of the core themes is that we want an unliftable monad. Inside GuardM we throw
@@ -187,7 +190,7 @@ forbidden = throwIO err403
 -- catch outstanding exceptions and produce a 500 error here instead. This allows
 -- middlewares to log these requests and responses as well.
 toHandler :: Env -> GuardM a -> Handler a
-toHandler env = Handler . ExceptT . flip runReaderT env . runStdoutLoggingT . runGuardM . catchRemEx
+toHandler env = Handler . ExceptT . flip runReaderT env . runLog (envVerbosity env) . runGuardM . catchRemEx
   where
     catchRemEx :: forall a. GuardM a -> GuardM (Either ServerError a)
     catchRemEx handler = (Right <$> handler) `E.catches` exceptions
@@ -211,12 +214,12 @@ toHandler env = Handler . ExceptT . flip runReaderT env . runStdoutLoggingT . ru
     prpgSrvErr :: ServerError -> GuardM (Either ServerError a)
     prpgSrvErr = pure . Left
 
-mkApp :: Config -> IO Application
-mkApp cfg = do
+mkApp :: Int -> Config -> IO Application
+mkApp verbosity cfg = do
   url <- parseBaseUrl (T.unpack (cfgUpstreamApiBaseUrl cfg))
   mgr <- newManager tlsManagerSettings
   let clientEnv =  PDNS.applyXApiKey (cfgUpstreamApiKey cfg) (mkClientEnv mgr url)
-  let env = Env clientEnv
+  let env = Env clientEnv verbosity
 
   pure (genericServeTWithContext (toHandler env) server (ourContext cfg))
 

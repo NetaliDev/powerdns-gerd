@@ -10,10 +10,12 @@ module PowerDNS.Guard.Utils
   , parseAbsDomain
   , parseAbsDomainLabels
   , parseDomainPattern
+  , logFilter
   )
 where
 
 import           Control.Applicative (optional, some)
+import           Control.Monad.Logger (LogLevel(..), LogSource)
 import qualified Data.Attoparsec.Text as ATT
 import           Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 import           Data.List (intersperse)
@@ -102,3 +104,11 @@ isLetDig c = isAsciiLetter c || isDigit c
 
 isLetDigHyp :: Char -> Bool
 isLetDigHyp c = isLetDig c || c == '-'
+
+logFilter :: Int -> LogSource -> LogLevel -> Bool
+logFilter logVerbosity
+    | logVerbosity <= 0 = \_ _ -> False
+    | otherwise = \_ lvl -> lvl >= verbosity
+    where
+    verbosity = levels !! (logVerbosity + 1)
+    levels = LevelError : LevelWarn : LevelInfo : repeat LevelDebug

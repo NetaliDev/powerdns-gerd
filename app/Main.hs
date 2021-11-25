@@ -1,12 +1,13 @@
 module Main where
 
+import Network.Wai.Handler.Warp (Settings, defaultSettings, runSettings,
+                                 setHost, setPort)
+import PowerDNS.Guard.Config (Config(..), configHelp, loadConfig)
+import PowerDNS.Guard.Options (Command(..), ServerOpts(..), getCommand)
 import PowerDNS.Guard.Server (mkApp)
-import PowerDNS.Guard.Config (loadConfig, Config(..), configHelp)
-import Network.Wai.Handler.Warp (Settings, setPort, setHost, defaultSettings, runSettings)
-import System.IO (hSetBuffering, BufferMode(..), stderr, stdout)
-import PowerDNS.Guard.Options (getCommand, Command(..), ServerOpts(..))
 import System.Environment (getArgs)
 import System.Exit (exitSuccess)
+import System.IO (BufferMode(..), hSetBuffering, stderr, stdout)
 
 setBuffering :: IO ()
 setBuffering = do
@@ -15,17 +16,17 @@ setBuffering = do
 
 main :: IO ()
 main = do
-  setBuffering 
+  setBuffering
   runCommand =<< getCommand =<< getArgs
 
 runCommand :: Command -> IO ()
-runCommand CmdConfigHelp = putStrLn configHelp >> exitSuccess
+runCommand CmdConfigHelp       = putStrLn configHelp >> exitSuccess
 runCommand (CmdRunServer opts) = runServer opts
 
 runServer :: ServerOpts -> IO ()
 runServer opts = do
   cfg <- loadConfig (optConfig opts)
-  runSettings (mkSettings cfg) =<< mkApp cfg
+  runSettings (mkSettings cfg) =<< mkApp (optVerbosity opts) cfg
 
 mkSettings :: Config -> Settings
 mkSettings cfg = setPort (fromIntegral (cfgListenPort cfg))
