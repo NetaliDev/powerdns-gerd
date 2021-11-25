@@ -14,12 +14,14 @@ build:linux:
     - haskell
   artifacts:
     paths:
-      - build/powerdns-guard-test
+      - build/test/powerdns-guard-test
+      - build/test/powerdns-guard.test.conf
   script:
-    - mkdir build/
+    - mkdir -p build/test
     - cabal build -j4 --enable-tests powerdns-guard
     - cabal build -j4 --enable-tests powerdns-guard:test:powerdns-guard-test
-    - cp $(cabal -v0 list-bin --enable-tests powerdns-guard:test:powerdns-guard-test) build/powerdns-guard-test
+    - cp $(cabal -v0 list-bin --enable-tests powerdns-guard:test:powerdns-guard-test) build/test/powerdns-guard-test
+    - cp test/powerdns-guard.test.conf build/test/powerdns-guard.test.conf
 
 test:
   image: ubuntu:focal
@@ -40,4 +42,4 @@ test:
     - apt update
     - apt install --yes --no-install-recommends zlib1g libsodium23
     - cd build/
-    - ./powerdns-guard-test
+    - ./test/powerdns-guard-test
