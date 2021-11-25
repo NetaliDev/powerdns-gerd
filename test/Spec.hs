@@ -5,21 +5,23 @@ where
 
 import           Control.Exception (throwIO)
 import           Data.Foldable (for_)
+import           Data.Maybe (isJust)
 import qualified Data.Text as T
-import           Network.HTTP.Client (defaultManagerSettings, newManager)
-import           Network.Wai.Handler.Warp (testWithApplication)
-import           Servant.Client
-import           Test.HUnit (assertString)
-
-import           PowerDNS.Client
+import           System.Environment (lookupEnv)
 
 import           Data.CallStack
+import           Network.HTTP.Client (defaultManagerSettings, newManager)
 import           Network.HTTP.Types (Status(statusCode))
+import           Network.Wai.Handler.Warp (testWithApplication)
 import           PowerDNS.Guard.Config
 import           PowerDNS.Guard.Server
+import           Servant.Client
+import           Test.HUnit (assertString)
 import           Test.HUnit.Lang
 import           Test.Tasty
 import           Test.Tasty.HUnit (testCase)
+
+import           PowerDNS.Client
 
 data TestEnv = TestEnv
   { teGuardedEnv :: ClientEnv
@@ -253,11 +255,20 @@ tests te = testGroup "PowerDNS tests"
 
 main :: IO ()
 main = do
+  isCI <- isJust <$> lookupEnv "IN_GITLAB_CI"
+
   cfg <- loadConfig "./test/powerdns-guard.test.conf"
-  testWithApplication (mkApp 0 cfg) $ \port -> do
+
+  let (cfg', upstream) = if isCI
+        then ( cfg { cfgUpstreamApiBaseUrl = "http://pdns:8081" }
+             , BaseUrl Http "pdns" 8081 "" )
+        else ( cfg
+             , BaseUrl Http "127.0.0.1" 8081 "" )
+
+  testWithApplication (mkApp 0 cfg') $ \port -> do
     mgr <- newManager defaultManagerSettings
     let guardedUrl = BaseUrl Http "127.0.0.1" port ""
-        upstreamUrl = BaseUrl Http "pdns" 8081 ""
+        upstreamUrl = upstream
         guardedEnv = mkClientEnv mgr guardedUrl
         upstreamEnv = applyXApiKey "secret" (mkClientEnv mgr upstreamUrl)
         testEnv = TestEnv guardedEnv upstreamEnv

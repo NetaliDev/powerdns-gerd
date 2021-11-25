@@ -27,6 +27,7 @@ test:
   image: ubuntu:focal
   variables:
     DEBIAN_FRONTEND: "noninteractive"
+    IN_GITLAB_CI: "yes"
   dependencies:
     - build:linux
   services:
