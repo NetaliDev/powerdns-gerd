@@ -1,0 +1,28 @@
+stages:
+  - build
+  - test
+
+variables:
+  GIT_STRATEGY: clone
+
+build:linux:
+  cache:
+    paths:
+      - dist-newstyle/
+  stage: build
+  tags:
+    - haskell
+  script:
+    - cabal build -j4 powerdns-guard:exe:powerdns-guard
+
+test:
+  services:
+    - registry.gitlab.com/wobcom/haskell/powerdns-guard:pdns-service
+  cache:
+    paths:
+      - dist-newstyle/
+  stage: test
+  tags:
+    - haskell
+  script:
+    - cabal test -j4 powerdns-guard:test:powerdns-guard-test
