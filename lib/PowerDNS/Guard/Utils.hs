@@ -11,6 +11,7 @@ module PowerDNS.Guard.Utils
   , parseAbsDomainLabels
   , parseDomainPattern
   , logFilter
+  , pprElabDomainPerm
   )
 where
 
@@ -112,3 +113,28 @@ logFilter logVerbosity
     where
     verbosity = levels !! (logVerbosity + 1)
     levels = LevelError : LevelWarn : LevelInfo : repeat LevelDebug
+
+pprDomainPattern :: DomainPattern -> T.Text
+pprDomainPattern (DomainPattern patterns) = mconcat (pprLabelPattern <$> patterns)
+
+pprLabelPattern :: DomainLabelPattern -> T.Text
+pprLabelPattern (DomLiteral t) = t <> "."
+pprLabelPattern DomGlob        = "*."
+pprLabelPattern DomGlobStar    = "**."
+
+
+showT :: Show a => a -> T.Text
+showT = T.pack . show
+
+pprAllowed :: AllowSpec -> T.Text
+pprAllowed MayModifyAnyRecordType   = "any record type"
+pprAllowed (MayModifyRecordType xs) = "record types: " <> showT xs
+
+pprElabDomainPerm :: ElabDomainPerm -> T.Text
+pprElabDomainPerm (ElabDomainPerm zone pat allowed)
+    = "pattern " <> quoted (pprDomainPattern pat) <> zoneDescr <> "for " <> pprAllowed allowed
+  where
+    zoneDescr = maybe "" (\(ZoneId z) -> " inside zone " <> quoted z <> " ") zone
+
+quoted :: T.Text -> T.Text
+quoted x = "\"" <> x <> "\""

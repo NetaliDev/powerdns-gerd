@@ -87,6 +87,8 @@ filterDomainPermsRRSet zone rrset eperms = do
   labels <- notePanic (hush (parseAbsDomainLabels nam))
                       ("failed to parse rrset: " <> nam)
 
+  logDebugN ("Find matching permissions for: " <> PDNS.rrset_name rrset)
+
   pure $ filterDomainPerms zone labels (PDNS.rrset_type rrset) eperms
 
 -- | Ensure the user has sufficient permissions for this RRset
@@ -94,7 +96,7 @@ ensureHasRecordPermissions :: [ElabDomainPerm] -> ZoneId -> PDNS.RRSet -> GuardM
 ensureHasRecordPermissions eperms zone rrset = do
     matching <- filterDomainPermsRRSet zone rrset eperms
     when (null matching) forbidden
-    logDebugN ("Matching permissions:\n" <> T.unlines (showT <$> matching))
+    logDebugN ("Matching permissions:\n" <> T.unlines (pprElabDomainPerm <$> matching))
 
 showT :: Show a => a -> T.Text
 showT = T.pack . show
