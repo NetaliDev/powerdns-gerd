@@ -257,7 +257,7 @@ main = do
   testWithApplication (mkApp cfg) $ \port -> do
     mgr <- newManager defaultManagerSettings
     let guardedUrl = BaseUrl Http "127.0.0.1" port ""
-        upstreamUrl = BaseUrl Http "127.0.0.1" 8081 ""
+        upstreamUrl = BaseUrl Http "pdns" 8081 ""
         guardedEnv = mkClientEnv mgr guardedUrl
         upstreamEnv = applyXApiKey "secret" (mkClientEnv mgr upstreamUrl)
         testEnv = TestEnv guardedEnv upstreamEnv
