@@ -183,17 +183,17 @@ existingUsers = "user-without-permissions" : (fst <$> catMaybes (trd3 <$> domain
 -- This matrix must be kept in sync with powerdns-guard.test.conf
 domainMatrix :: [(T.Text, T.Text, Maybe (T.Text, Expected))]
 domainMatrix =
-  [ ("a.user1.zone.", "rec1.a.user1.zone.", Just ("user1", ATXT))
-  , ("a.user1.zone.", "rec2.a.user1.zone.", Just ("user1", Any))
-  , ("a.user1.zone.", "unowned.a.user1.zone.", Nothing)
-  , ("a.user1.zone.", "sub.rec3.a.user1.zone.", Just ("user1", ATXT))
-  , ("a.user1.zone.", "sub.rec4.a.user1.zone.", Just ("user1", Any))
+  [ ("zone.", "rec1.user1.zone.", Just ("user1", ATXT))
+  , ("zone.", "rec2.user1.zone.", Just ("user1", Any))
+  , ("zone.", "unowned-a.user1.zone.", Nothing)
+  , ("zone.", "sub.rec3.user1.zone.", Just ("user1", ATXT))
+  , ("zone.", "sub.rec4.user1.zone.", Just ("user1", Any))
 
-  , ("b.user1.zone.", "rec1.b.user1.zone.", Just ("user1", ATXT))
-  , ("b.user1.zone.", "rec2.b.user1.zone.", Just ("user1", Any))
-  , ("b.user1.zone.", "unowned.b.user1.zone.", Nothing)
-  , ("b.user1.zone.", "sub.rec3.b.user1.zone.", Just ("user1", ATXT))
-  , ("b.user1.zone.", "sub.rec4.b.user1.zone.", Just ("user1", Any))
+  , ("zone.", "rec5.user1.zone.", Just ("user1", ATXT))
+  , ("zone.", "rec6.user1.zone.", Just ("user1", Any))
+  , ("zone.", "unowned-b.user1.zone.", Nothing)
+  , ("zone.", "sub.rec7.user1.zone.", Just ("user1", ATXT))
+  , ("zone.", "sub.rec8.user1.zone.", Just ("user1", Any))
 
   , ("user2.zone.", "sub.user2.zone.", Just ("user2", ATXT))
   , ("user2.zone.", "user2.zone.", Just ("user2", ATXT))
@@ -202,7 +202,6 @@ domainMatrix =
   , ("zone.", "sub.sub.globstar.user2.zone.", Just ("user2", ATXT))
   , ("zone.", "alpha.glob.user2.zone.", Nothing)
   , ("zone.", "sub.alpha.glob.user2.zone.", Just ("user2", ATXT))
-  , ("zone.", "sub.beta.glob.user2.zone.", Just ("user2", ATXT))
   ]
 
 
