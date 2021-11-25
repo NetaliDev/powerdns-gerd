@@ -14,7 +14,8 @@ import           Data.Char (ord)
 import           Data.Foldable (for_, toList)
 
 import           Control.Monad.Logger (LoggingT, filterLogger, logDebugN,
-                                       logError, logErrorN, runStdoutLoggingT)
+                                       logError, logErrorN, logWarnN,
+                                       runStdoutLoggingT)
 import           Control.Monad.Reader (ask)
 import           Control.Monad.Trans.Except (ExceptT(ExceptT))
 import           Control.Monad.Trans.Reader (runReaderT)
@@ -120,23 +121,46 @@ guardedZones acc = PDNS.ZonesAPI
           Just Filtered -> filterZone eperms =<< runProxy (PDNS.getZone srv zone rrs)
           Just Unfiltered -> runProxy (PDNS.getZone srv zone rrs)
 
-    , PDNS.apiDeleteZone    = const2 forbidden
+    , PDNS.apiDeleteZone    = \srv zone -> do
+        authorize "delete zone" (getZonePermission zpDeleteZone zone acc)
+        runProxy (PDNS.deleteZone srv zone)
+
     , PDNS.apiUpdateRecords = \srv zone rrs -> do
         when (null $ PDNS.rrsets rrs) forbidden
         for_ (PDNS.rrsets rrs) $ \rrset -> do
             ensureHasRecordPermissions eperms (ZoneId zone) rrset
         runProxy (PDNS.updateRecords srv zone rrs)
 
+    , PDNS.apiUpdateZone    = \srv zone zoneData -> do
+        authorize "update zone" (getZonePermission zpUpdateZone zone acc)
+        runProxy (PDNS.updateZone srv zone zoneData)
 
-    , PDNS.apiUpdateZone    = const3 forbidden
-    , PDNS.apiTriggerAxfr   = const2 forbidden
-    , PDNS.apiNotifySlaves  = const2 forbidden
-    , PDNS.apiGetZoneAxfr   = const2 forbidden
-    , PDNS.apiRectifyZone   = const2 forbidden
+    , PDNS.apiTriggerAxfr   = \srv zone -> do
+        authorize "trigger axfr" (getZonePermission zpTriggerAxfr zone acc)
+        runProxy (PDNS.triggerAxfr srv zone)
+
+    , PDNS.apiNotifySlaves  = \srv zone -> do
+        authorize "notify slaves" (getZonePermission zpNotifySlaves zone acc)
+        runProxy (PDNS.notifySlaves srv zone)
+
+    , PDNS.apiGetZoneAxfr   = \srv zone -> do
+        authorize "get zone axfr" (getZonePermission zpGetZoneAxfr zone acc)
+        runProxy (PDNS.getZoneAxfr srv zone)
+
+    , PDNS.apiRectifyZone   = \srv zone -> do
+        authorize "rectify zone" (getZonePermission zpRectifyZone zone acc)
+        runProxy (PDNS.rectifyZone srv zone)
     }
   where
     eperms :: [ElabDomainPerm]
     eperms = elaborateDomainPerms acc
+
+authorize :: T.Text -> Authorization -> GuardM ()
+authorize title Forbidden  = do
+  logWarnN (title <> " denied, insufficient permissions")
+  forbidden
+
+authorize _     Authorized = pure ()
 
 guardedMetadata :: User -> PDNS.MetadataAPI AsGuard
 guardedMetadata _ = PDNS.MetadataAPI

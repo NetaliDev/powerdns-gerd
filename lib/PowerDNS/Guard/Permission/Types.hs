@@ -59,13 +59,20 @@ data ViewPermission = Filtered | Unfiltered
   deriving Show
 
 data ZonePermissions = ZonePermissions
-  { zoneDomainPermissions :: PermissionList
-  , zoneViewPermission :: Maybe ViewPermission
+  { zpDomainPerms :: PermissionList
+  , zpViewZone :: Maybe ViewPermission
+  , zpUpdateZone :: Authorization
+  , zpDeleteZone :: Authorization
+  , zpTriggerAxfr :: Authorization
+  , zpNotifySlaves :: Authorization
+  , zpGetZoneAxfr :: Authorization
+  , zpRectifyZone :: Authorization
   } deriving Show
 
 type PermissionList = [(DomainPattern, AllowSpec)]
 
 data Authorization = Forbidden | Authorized
+  deriving Show
 
 data ElabZonePerm = ElabZonePerm
   { ezZone :: ZoneId

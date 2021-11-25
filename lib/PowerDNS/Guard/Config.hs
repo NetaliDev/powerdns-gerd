@@ -41,6 +41,8 @@ data Config = Config
 optSectionDefault' :: a -> T.Text -> ValueSpec a -> T.Text -> SectionsSpec a
 optSectionDefault' def sect spec descr = fromMaybe def <$> optSection' sect spec descr
 
+
+
 absRecordPermSpec :: ValueSpec (DomainPattern, AllowSpec)
 absRecordPermSpec = sectionsSpec "abs-record-spec" $ do
   n <- reqSection' "name" domainPatSpec "The record name(s) that can be managed. Must be absolute with a trailing dot."
@@ -54,14 +56,23 @@ viewPermissionSpec :: ValueSpec ViewPermission
 viewPermissionSpec = Filtered <$ atomSpec "filtered"
                  <!> Unfiltered <$ atomSpec "unsafeUnfiltered"
 
+authorizationSpec :: ValueSpec Authorization
+authorizationSpec = Authorized <$ atomSpec "permit"
+
 zoneMapItemSpec :: ValueSpec (ZoneId, ZonePermissions)
 zoneMapItemSpec = sectionsSpec "zone" $ do
   zoneName <- reqSection' "zone" zoneIdSpec "The name of the zone"
 
-  zoneDomainPermissions <- optSectionDefault' [] "domains"
+  zpDomainPerms <- optSectionDefault' [] "domains"
                                                  (listSpec absRecordPermSpec)
                                                  "List of records permissions"
-  zoneViewPermission <- optSection' "view" viewPermissionSpec "Whether or not this user can view this zone, and whether records should be filtered to those the user has permissions to"
+  zpViewZone <- optSection' "view" viewPermissionSpec "Permission to view this zone, filtered or unfiltered. When unfiltered, this user can see all records of a zone in the GET endpoint. When filtered, the result will be filtered to only include RRSets the user can also modify. Forbidden by default."
+  zpDeleteZone <- optSectionDefault' Forbidden "delete" authorizationSpec "Permission to delete this zone. Forbidden by default."
+  zpUpdateZone <- optSectionDefault' Forbidden "update" authorizationSpec "Permission to update this zone. Forbidden by default."
+  zpTriggerAxfr <- optSectionDefault' Forbidden "triggerAxfr" authorizationSpec "Permission to trigger a zone transfer on a slave. Forbidden by default."
+  zpNotifySlaves <- optSectionDefault' Forbidden "notifySlaves" authorizationSpec "Permission to notify slaves. Forbidden by default."
+  zpGetZoneAxfr <- optSectionDefault' Forbidden "getAxfr" authorizationSpec "Permission to obtain a zone transfer in AXFR format. Forbidden by default."
+  zpRectifyZone <- optSectionDefault' Forbidden "rectifyZone" authorizationSpec "Permission to rectify the zone. Forbidden by default."
 
   pure (zoneName, ZonePermissions{..})
 
@@ -153,11 +164,11 @@ userSpec = sectionsSpec "user" $ do
   _uZonePerms <- optSectionDefault' mempty
                                     "zones"
                                     (zoneMapSpec)
-                                    "Whether or not the user may list all zones of the server"
+                                    "Zone-specific permissions"
   _uRecordPerms <- optSectionDefault' []
                                     "domains"
                                     (listSpec absRecordPermSpec)
-                                    "Record permissions of absolute domains. This will grant a permission irrespective of the containing domain."
+                                    "Global domain permissions"
 
   pure User{..}
 

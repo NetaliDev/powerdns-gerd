@@ -5,6 +5,7 @@ module PowerDNS.Guard.Permission
   , zoneViewPerm
   , elaborateDomainPerms
   , filterDomainPerms
+  , getZonePermission
   )
 where
 
@@ -35,15 +36,18 @@ matchesAllowSpec :: RecordType -> AllowSpec -> Bool
 matchesAllowSpec _ MayModifyAnyRecordType    = True
 matchesAllowSpec rt (MayModifyRecordType xs) = rt `elem` xs
 
+getZonePermission :: (ZonePermissions -> Authorization) -> T.Text -> User -> Authorization
+getZonePermission f zone user = maybe Forbidden f (M.lookup (ZoneId zone) (_uZonePerms user))
+
 zoneViewPerm :: User -> ZoneId -> Maybe ViewPermission
-zoneViewPerm acc zone = join (zoneViewPermission <$> M.lookup zone (_uZonePerms acc))
+zoneViewPerm user zone = join (zpViewZone <$> M.lookup zone (_uZonePerms user))
 
 elaborateDomainPerms :: User -> [ElabDomainPerm]
-elaborateDomainPerms acc = permsWithoutZoneId <> permsWithZoneId
+elaborateDomainPerms user = permsWithoutZoneId <> permsWithZoneId
   where
     permsWithoutZoneId :: [ElabDomainPerm]
     permsWithoutZoneId = do
-      (pat, allowed) <- _uRecordPerms acc
+      (pat, allowed) <- _uRecordPerms user
       pure ElabDomainPerm{ epZone = Nothing
                                , epDomainPat = pat
                                , epAllowed = allowed
@@ -51,8 +55,8 @@ elaborateDomainPerms acc = permsWithoutZoneId <> permsWithZoneId
 
     permsWithZoneId :: [ElabDomainPerm]
     permsWithZoneId = do
-      (zone, perms) <- M.toList (_uZonePerms acc)
-      (pat, allowed) <- zoneDomainPermissions perms
+      (zone, perms) <- M.toList (_uZonePerms user)
+      (pat, allowed) <- zpDomainPerms perms
       pure ElabDomainPerm{ epZone = Just zone
                                , epDomainPat = pat
                                , epAllowed = allowed
