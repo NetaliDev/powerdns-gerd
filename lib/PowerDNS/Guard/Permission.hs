@@ -1,5 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE OverloadedStrings #-}
 module PowerDNS.Guard.Permission
   ( module PowerDNS.Guard.Permission.Types
   , zoneViewPerm
@@ -10,11 +10,11 @@ where
 
 import qualified Data.Map as M
 
-import PowerDNS.Guard.Permission.Types
-import PowerDNS.Guard.User
-import Control.Monad (join)
-import PowerDNS.API (RecordType)
+import           Control.Monad (join)
 import qualified Data.Text as T
+import           PowerDNS.API (RecordType)
+import           PowerDNS.Guard.Permission.Types
+import           PowerDNS.Guard.User
 
 matchesDomainPat :: DomainLabels -> DomainPattern -> Bool
 matchesDomainPat (DomainLabels x) (DomainPattern y) = go (reverse x) (reverse y)
@@ -24,7 +24,7 @@ matchesDomainPat (DomainLabels x) (DomainPattern y) = go (reverse x) (reverse y)
     go []  _ps            = False
     go _ls  []            = False
     go _ls  [DomGlobStar] = True
-    go (l:ls) (p:ps) = patternMatches l p && go ls ps
+    go (l:ls) (p:ps)      = patternMatches l p && go ls ps
 
     patternMatches :: T.Text -> DomainLabelPattern -> Bool
     patternMatches _l DomGlob       = True
@@ -32,7 +32,7 @@ matchesDomainPat (DomainLabels x) (DomainPattern y) = go (reverse x) (reverse y)
     patternMatches _l DomGlobStar   = error "patternMatches: impossible! DomGlobStar in the middle"
 
 matchesAllowSpec :: RecordType -> AllowSpec -> Bool
-matchesAllowSpec _ MayModifyAnyRecordType = True
+matchesAllowSpec _ MayModifyAnyRecordType    = True
 matchesAllowSpec rt (MayModifyRecordType xs) = rt `elem` xs
 
 zoneViewPerm :: User -> ZoneId -> Maybe ViewPermission
@@ -59,7 +59,7 @@ elaborateDomainPerms acc = permsWithoutZoneId <> permsWithZoneId
                                }
 
 matchesZone :: ZoneId -> Maybe ZoneId -> Bool
-matchesZone _ Nothing = True
+matchesZone _ Nothing  = True
 matchesZone l (Just r) = l == r
 
 filterDomainPerms :: ZoneId -> DomainLabels -> RecordType -> [ElabDomainPerm] -> [ElabDomainPerm]

@@ -1,7 +1,7 @@
+{-# LANGUAGE ApplicativeDo     #-}
+{-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE RecordWildCards   #-}
 module PowerDNS.Guard.Config
   ( Config(..)
   , loadConfig
@@ -17,18 +17,18 @@ import           System.IO (hPutStrLn, stderr)
 
 import           Config.Schema
 import qualified Data.Text as T
-import           Data.Word (Word16)
 import qualified Data.Text.Encoding as T
-import           UnliftIO.Exception (catch)
+import           Data.Word (Word16)
 import           Network.Wai.Handler.Warp (HostPreference)
 import qualified Text.PrettyPrint as Pretty
+import           UnliftIO.Exception (catch)
 
-import           PowerDNS.Guard.User
-import PowerDNS.Guard.Permission
-import PowerDNS.API.Zones
+import           Data.Bifunctor (first)
 import qualified Data.Map as M
-import Data.Bifunctor (first)
-import PowerDNS.Guard.Utils
+import           PowerDNS.API.Zones
+import           PowerDNS.Guard.Permission
+import           PowerDNS.Guard.User
+import           PowerDNS.Guard.Utils
 
 data Config = Config
   { cfgUpstreamApiBaseUrl :: T.Text

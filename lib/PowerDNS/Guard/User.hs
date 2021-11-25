@@ -5,12 +5,12 @@ module PowerDNS.Guard.User
 where
 
 
-import qualified Data.Text as T
-import Libsodium
 import qualified Data.ByteString.Char8 as B8
-import Data.Foldable (find)
+import           Data.Foldable (find)
+import qualified Data.Text as T
+import           Libsodium
 
-import PowerDNS.Guard.User.Types
+import           PowerDNS.Guard.User.Types
 
 authenticate :: [User] -> T.Text -> B8.ByteString -> IO (Maybe User)
 authenticate db name pass = maybe (pure Nothing)
@@ -19,7 +19,7 @@ authenticate db name pass = maybe (pure Nothing)
   where
     matchingName :: User -> Bool
     matchingName ac = _uName ac == name
-  
+
     verify :: User -> IO (Maybe User)
     verify ac = do
       valid <- verifyArgon2id pass (_uPassHash ac)
@@ -35,4 +35,3 @@ verifyArgon2id pass hash =
       case res of
         0 -> pure True
         _ -> pure False
-

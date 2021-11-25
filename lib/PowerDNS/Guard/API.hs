@@ -1,7 +1,7 @@
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DataKinds     #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TypeFamilies  #-}
+{-# LANGUAGE TypeOperators #-}
 module PowerDNS.Guard.API
   ( API
   , api
@@ -10,12 +10,12 @@ module PowerDNS.Guard.API
 where
 
 import qualified PowerDNS.API as PDNS
-import Servant.API
-import Servant.API.Generic
-import Servant.Server.Experimental.Auth (AuthServerData)
+import           Servant.API
+import           Servant.API.Generic
+import           Servant.Server.Experimental.Auth (AuthServerData)
 
-import PowerDNS.Guard.User
-import Data.Proxy
+import           Data.Proxy
+import           PowerDNS.Guard.User
 
 type instance AuthServerData (AuthProtect "xapi") = User
 

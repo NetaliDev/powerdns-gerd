@@ -1,6 +1,6 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE KindSignatures    #-}
 {-# LANGUAGE OverloadedStrings #-}
 module PowerDNS.Guard.Permission.Types
   ( ZoneId(..)
@@ -20,8 +20,8 @@ module PowerDNS.Guard.Permission.Types
   )
 where
 
-import PowerDNS.API (RecordType)
 import qualified Data.Text as T
+import           PowerDNS.API (RecordType)
 
 data DomainKind = Absolute | Relative
 

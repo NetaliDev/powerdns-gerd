@@ -4,10 +4,10 @@ module PowerDNS.Guard.User.Types
   )
 where
 
-import PowerDNS.Guard.Permission.Types
-import qualified Data.Map as M
 import qualified Data.ByteString.Char8 as B8
+import qualified Data.Map as M
 import qualified Data.Text as T
+import           PowerDNS.Guard.Permission.Types
 
 data User = User
   { _uName :: T.Text

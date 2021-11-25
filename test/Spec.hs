@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Main
 where
@@ -6,24 +6,24 @@ where
 import           Control.Exception (throwIO)
 import           Data.Foldable (for_)
 import qualified Data.Text as T
-import           Network.HTTP.Client (newManager, defaultManagerSettings)
+import           Network.HTTP.Client (defaultManagerSettings, newManager)
 import           Network.Wai.Handler.Warp (testWithApplication)
 import           Servant.Client
 import           Test.HUnit (assertString)
 
 import           PowerDNS.Client
 
-import           PowerDNS.Guard.Server
+import           Data.CallStack
+import           Network.HTTP.Types (Status(statusCode))
 import           PowerDNS.Guard.Config
-import Test.HUnit.Lang
-import GHC.Exception
-import Data.CallStack
-import Network.HTTP.Types (Status(statusCode))
-import Test.Tasty
-import Test.Tasty.HUnit (testCase)
+import           PowerDNS.Guard.Server
+import           Test.HUnit.Lang
+import           Test.Tasty
+import           Test.Tasty.HUnit (testCase)
 
 data TestEnv = TestEnv
   { teGuardedEnv :: ClientEnv
+
   , teUpstreamEnv :: ClientEnv
   }
 
@@ -50,7 +50,7 @@ ourZone :: T.Text
 ourZone = "our.zone."
 
 assertOk :: Either ClientError a -> Assertion
-assertOk (Left r) = assertString ("request failed: " <> show r)
+assertOk (Left r)  = assertString ("request failed: " <> show r)
 assertOk (Right _) = pure ()
 
 assertForbidden :: Either ClientError a -> Assertion
@@ -62,7 +62,7 @@ assertUnauthenticated = assertFailureCode 401 ""
 location :: HasCallStack => Maybe SrcLoc
 location = case reverse callStack of
   (_, loc) : _ -> Just loc
-  [] -> Nothing
+  []           -> Nothing
 
 assertFailureCode :: Int -> String -> Either ClientError a -> Assertion
 assertFailureCode _expectedCode prefix (Right _) = do
@@ -134,10 +134,10 @@ testUpdatingRecords te = testGroup "updating records" (mkTestCase <$> cases)
         description :: String
         description = case expectancy of
           ATXT -> "modify only A and TXT"
-          Any -> "modify any record type"
+          Any  -> "modify any record type"
           None -> "modify no record type"
 
-        
+
         ts :: [TestTree]
         ts = case expectancy of
           ATXT -> [ withPresetZone' te $ tripleTest user "able to modify A records" assertOk (deleteRecords A domain) te
@@ -170,13 +170,13 @@ testUpdatingRecords te = testGroup "updating records" (mkTestCase <$> cases)
     cases =
       [ ("user1", "sub.rec1", None)
       , ("user1", "rec1", ATXT)
-      
+
       , ("user1", "sub.rec2", None)
       , ("user1", "rec2", Any)
-      
+
       , ("user1", "sub.rec3", ATXT)
       , ("user1", "rec3", None)
-      
+
       , ("user1", "sub.rec4", Any)
       , ("user1", "rec4", None)
 
@@ -185,7 +185,7 @@ testUpdatingRecords te = testGroup "updating records" (mkTestCase <$> cases)
 
       , ("user2", "sub.rec6", Any)
       , ("user2", "rec6", None)
-      
+
       , ("user2", "sub.rec7", None)
       , ("user2", "rec7", ATXT)
 
@@ -228,17 +228,17 @@ withPresetZone te = withResource unsafeMakeZone unsafeDeleteZone
       (ty, re) <- [ (A, "127.0.0.1")
                   , (AAAA, "::1")
                   , (TXT, "\"some txt\"") ]
-                  
+
       pure $ RRSet { rrset_name = (na <> "." <> ourZone)
                    , rrset_ttl = 86003
                    , rrset_type = ty
                    , rrset_changetype = Nothing
                    , rrset_records = Just [Record re False]
                    , rrset_comments = Nothing }
-                                       
+
     unsafeDeleteZone :: Zone -> IO ()
     unsafeDeleteZone _z = () <$ unsafeRunUpstream (deleteZone "localhost" ourZone) te
-  
+
 runWithout :: ClientM a -> TestEnv -> IO (Either ClientError a)
 runWithout act = runGuardedAs "user-without-permissions" act
 
@@ -249,19 +249,19 @@ tests :: TestEnv -> TestTree
 tests te = testGroup "PowerDNS tests"
     [ versionTests te
     , zoneTests te
-    ] 
+    ]
 
 main :: IO ()
 main = do
   cfg <- loadConfig "./test/powerdns-guard.test.conf"
   testWithApplication (mkApp cfg) $ \port -> do
-    mgr <- newManager defaultManagerSettings 
+    mgr <- newManager defaultManagerSettings
     let guardedUrl = BaseUrl Http "127.0.0.1" port ""
         upstreamUrl = BaseUrl Http "127.0.0.1" 8081 ""
         guardedEnv = mkClientEnv mgr guardedUrl
         upstreamEnv = applyXApiKey "secret" (mkClientEnv mgr upstreamUrl)
         testEnv = TestEnv guardedEnv upstreamEnv
-    
+
     unsafeCleanZones testEnv
     defaultMain (tests testEnv)
 

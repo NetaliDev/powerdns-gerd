@@ -1,9 +1,9 @@
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE TypeOperators       #-}
 module PowerDNS.Guard.Server
   ( mkApp
   )
@@ -11,9 +11,10 @@ where
 
 import           Control.Monad (when)
 import           Data.Char (ord)
-import           Data.Foldable (toList, for_)
+import           Data.Foldable (for_, toList)
 
-import           Control.Monad.Logger (logError, runStdoutLoggingT, logDebugN, logErrorN)
+import           Control.Monad.Logger (logDebugN, logError, logErrorN,
+                                       runStdoutLoggingT)
 import           Control.Monad.Reader (ask)
 import           Control.Monad.Trans.Except (ExceptT(ExceptT))
 import           Control.Monad.Trans.Reader (runReaderT)
@@ -26,27 +27,28 @@ import           Data.Text.Encoding.Error (lenientDecode)
 import           Network.HTTP.Client (newManager)
 import           Network.HTTP.Client.TLS (tlsManagerSettings)
 import           Network.HTTP.Types (Status(Status))
-import           Network.Wai (Request (requestHeaders))
+import           Network.Wai (Request(requestHeaders))
 import qualified PowerDNS.API as PDNS
 import qualified PowerDNS.Client as PDNS
 import           PowerDNS.Guard.User
 import           Servant (Context(..), throwError)
-import           Servant.Client (ClientM, runClientM, ClientError (FailureResponse))
-import           Servant.Client (parseBaseUrl)
+import           Servant.Client (ClientError(FailureResponse), ClientM,
+                                 parseBaseUrl, runClientM)
 import           Servant.Client.Streaming (ResponseF(Response), mkClientEnv)
-import           Servant.Server (Application, ServerError(..), err500, err403, Handler(..), err401, err400)
+import           Servant.Server (Application, Handler(..), ServerError(..),
+                                 err400, err401, err403, err500)
 import           Servant.Server.Experimental.Auth (AuthHandler, mkAuthHandler)
-import           Servant.Server.Generic (genericServerT, genericServeTWithContext)
-import           UnliftIO (throwIO, liftIO)
+import           Servant.Server.Generic (genericServeTWithContext,
+                                         genericServerT)
+import           UnliftIO (liftIO, throwIO)
 import qualified UnliftIO.Exception as E
 
+import           Control.Monad (filterM)
 import           PowerDNS.Guard.API
 import           PowerDNS.Guard.Config (Config(..))
+import           PowerDNS.Guard.Permission
 import           PowerDNS.Guard.Types
 import           PowerDNS.Guard.Utils
-import           PowerDNS.Guard.Permission
-import Control.Monad (filterM)
-
 
 server :: GuardedAPI AsGuard
 server = GuardedAPI
@@ -169,7 +171,7 @@ runProxy act = do
     either handleErr pure r
   where
     handleErr (FailureResponse _ resp) = throwIO (responseFToServerErr resp)
-    handleErr other = throwIO other
+    handleErr other                    = throwIO other
 
     responseFToServerErr :: ResponseF BSL.ByteString -> ServerError
     responseFToServerErr (Response (Status code message) headers _version body)

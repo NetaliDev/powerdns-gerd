@@ -10,7 +10,7 @@ import Options.Applicative
 data Command
   = CmdRunServer ServerOpts
   | CmdConfigHelp
-  
+
 data ServerOpts = ServerOpts
   { optVerbosity :: Int
   , optConfig :: FilePath

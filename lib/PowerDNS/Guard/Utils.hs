@@ -1,5 +1,5 @@
+{-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DataKinds #-}
 module PowerDNS.Guard.Utils
   ( const0
   , const1
@@ -13,14 +13,14 @@ module PowerDNS.Guard.Utils
   )
 where
 
-import qualified Data.Text as T
+import           Control.Applicative (optional, some)
 import qualified Data.Attoparsec.Text as ATT
-import Control.Applicative (optional, some)
-import Data.List (intersperse)
-import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
+import           Data.Char (isAsciiLower, isAsciiUpper, isDigit)
+import           Data.List (intersperse)
+import qualified Data.Text as T
 
-import PowerDNS.Guard.Permission
-import Data.Foldable (asum)
+import           Data.Foldable (asum)
+import           PowerDNS.Guard.Permission
 
 const0 :: a -> a
 const0 a = a
