@@ -1,4 +1,4 @@
-module PowerDNS.Guard.Options
+module PowerDNS.Gerd.Options
   ( Command(..)
   , ServerOpts(..)
   , getCommand
@@ -25,7 +25,7 @@ getCommand args = handleParseResult (execParserPure p optInfo args)
 optInfo :: ParserInfo Command
 optInfo = info (cmd <**> helper)
   ( fullDesc
-  <> header "PowerDNS Guard - An authorization proxy for PowerDNS API"
+  <> header "PowerDNS Gerd - An authorization proxy for PowerDNS API"
   )
 
 cmd :: Parser Command
@@ -45,7 +45,7 @@ parseConfigFile = option str ( metavar "FILE"
                             <> short 'c'
                             <> long "config"
                             <> help "Path to the config"
-                            <> value "./powerdns-guard.conf"
+                            <> value "./powerdns-gerd.conf"
                             <> showDefault)
 
 parseVerbosity :: Parser Int

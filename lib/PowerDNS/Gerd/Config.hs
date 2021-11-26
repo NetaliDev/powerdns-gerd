@@ -2,7 +2,7 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
-module PowerDNS.Guard.Config
+module PowerDNS.Gerd.Config
   ( Config(..)
   , loadConfig
   , configHelp
@@ -26,9 +26,9 @@ import           UnliftIO.Exception (catch)
 import           Data.Bifunctor (first)
 import qualified Data.Map as M
 import           PowerDNS.API.Zones
-import           PowerDNS.Guard.Permission
-import           PowerDNS.Guard.User
-import           PowerDNS.Guard.Utils
+import           PowerDNS.Gerd.Permission
+import           PowerDNS.Gerd.User
+import           PowerDNS.Gerd.Utils
 
 data Config = Config
   { cfgUpstreamApiBaseUrl :: T.Text

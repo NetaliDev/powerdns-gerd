@@ -4,7 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TypeOperators       #-}
-module PowerDNS.Guard.Server
+module PowerDNS.Gerd.Server
   ( mkApp
   )
 where
@@ -31,7 +31,7 @@ import           Network.HTTP.Types (Status(Status))
 import           Network.Wai (Request(requestHeaders))
 import qualified PowerDNS.API as PDNS
 import qualified PowerDNS.Client as PDNS
-import           PowerDNS.Guard.User
+import           PowerDNS.Gerd.User
 import           Servant (Context(..), throwError)
 import           Servant.Client (ClientError(FailureResponse), ClientM,
                                  parseBaseUrl, runClientM)
@@ -45,13 +45,13 @@ import           UnliftIO (MonadIO, liftIO, throwIO)
 import qualified UnliftIO.Exception as E
 
 import           Control.Monad (filterM)
-import           PowerDNS.Guard.API
-import           PowerDNS.Guard.Config (Config(..))
-import           PowerDNS.Guard.Permission
-import           PowerDNS.Guard.Types
-import           PowerDNS.Guard.Utils
+import           PowerDNS.Gerd.API
+import           PowerDNS.Gerd.Config (Config(..))
+import           PowerDNS.Gerd.Permission
+import           PowerDNS.Gerd.Types
+import           PowerDNS.Gerd.Utils
 
-server :: GuardedAPI AsGuard
+server :: GuardedAPI AsGerd
 server = GuardedAPI
   { versions   = genericServerT . guardedVersions
   , servers    = genericServerT . guardedServers
@@ -61,12 +61,12 @@ server = GuardedAPI
   , tsigkeys   = genericServerT . guardedTSIGKeys
   }
 
-guardedVersions :: User -> PDNS.VersionsAPI AsGuard
+guardedVersions :: User -> PDNS.VersionsAPI AsGerd
 guardedVersions _ = PDNS.VersionsAPI
   { PDNS.apiListVersions = runProxy PDNS.listVersions
   }
 
-guardedServers :: User -> PDNS.ServersAPI AsGuard
+guardedServers :: User -> PDNS.ServersAPI AsGerd
 guardedServers _ = PDNS.ServersAPI
   { PDNS.apiListServers = const0 forbidden
   , PDNS.apiGetServer   = const1 forbidden
@@ -79,10 +79,10 @@ notNull :: Foldable t => t a -> Bool
 notNull = not . null
 
 -- | Filters a list of RRSet to only those we have any permissions on
-filterRRSets :: ZoneId -> [ElabDomainPerm] -> [PDNS.RRSet] -> GuardM [PDNS.RRSet]
+filterRRSets :: ZoneId -> [ElabDomainPerm] -> [PDNS.RRSet] -> GerdM [PDNS.RRSet]
 filterRRSets zone eperms = filterM (\rrset -> notNull <$> filterDomainPermsRRSet zone rrset eperms)
 
-filterDomainPermsRRSet :: ZoneId -> PDNS.RRSet -> [ElabDomainPerm] -> GuardM [ElabDomainPerm]
+filterDomainPermsRRSet :: ZoneId -> PDNS.RRSet -> [ElabDomainPerm] -> GerdM [ElabDomainPerm]
 filterDomainPermsRRSet zone rrset eperms = do
   let nam = PDNS.rrset_name rrset
   labels <- notePanic (hush (parseAbsDomainLabels nam))
@@ -93,7 +93,7 @@ filterDomainPermsRRSet zone rrset eperms = do
   pure $ filterDomainPerms zone labels (PDNS.rrset_type rrset) eperms
 
 -- | Ensure the user has sufficient permissions for this RRset
-ensureHasRecordPermissions :: [ElabDomainPerm] -> ZoneId -> PDNS.RRSet -> GuardM ()
+ensureHasRecordPermissions :: [ElabDomainPerm] -> ZoneId -> PDNS.RRSet -> GerdM ()
 ensureHasRecordPermissions eperms zone rrset = do
     matching <- filterDomainPermsRRSet zone rrset eperms
     when (null matching) forbidden
@@ -102,7 +102,7 @@ ensureHasRecordPermissions eperms zone rrset = do
 showT :: Show a => a -> T.Text
 showT = T.pack . show
 
-filterZone :: [ElabDomainPerm] -> PDNS.Zone -> GuardM PDNS.Zone
+filterZone :: [ElabDomainPerm] -> PDNS.Zone -> GerdM PDNS.Zone
 filterZone eperms zone = do
     name <- notePanic (PDNS.zone_name zone) ("Missing zone name: " <> showT zone)
 
@@ -111,7 +111,7 @@ filterZone eperms zone = do
                       (PDNS.zone_rrsets zone)
     pure $ zone { PDNS.zone_rrsets = filtered }
 
-guardedZones :: User -> PDNS.ZonesAPI AsGuard
+guardedZones :: User -> PDNS.ZonesAPI AsGerd
 guardedZones acc = PDNS.ZonesAPI
     { PDNS.apiListZones     = const3 forbidden
     , PDNS.apiCreateZone    = const3 forbidden
@@ -155,14 +155,14 @@ guardedZones acc = PDNS.ZonesAPI
     eperms :: [ElabDomainPerm]
     eperms = elaborateDomainPerms acc
 
-authorize :: T.Text -> Authorization -> GuardM ()
+authorize :: T.Text -> Authorization -> GerdM ()
 authorize title Forbidden  = do
   logWarnN (title <> " denied, insufficient permissions")
   forbidden
 
 authorize _     Authorized = pure ()
 
-guardedMetadata :: User -> PDNS.MetadataAPI AsGuard
+guardedMetadata :: User -> PDNS.MetadataAPI AsGerd
 guardedMetadata _ = PDNS.MetadataAPI
   { PDNS.apiListMetadata   = const2 forbidden
   , PDNS.apiCreateMetadata = const3 forbidden
@@ -171,7 +171,7 @@ guardedMetadata _ = PDNS.MetadataAPI
   , PDNS.apiDeleteMetadata = const3 forbidden
   }
 
-guardedTSIGKeys :: User -> PDNS.TSIGKeysAPI AsGuard
+guardedTSIGKeys :: User -> PDNS.TSIGKeysAPI AsGerd
 guardedTSIGKeys _ = PDNS.TSIGKeysAPI
   { PDNS.apiListTSIGKeys  = const1 forbidden
   , PDNS.apiCreateTSIGKey = const2 forbidden
@@ -180,7 +180,7 @@ guardedTSIGKeys _ = PDNS.TSIGKeysAPI
   , PDNS.apiDeleteTSIGKey = const2 forbidden
   }
 
-guardedCryptokeys :: User -> PDNS.CryptokeysAPI AsGuard
+guardedCryptokeys :: User -> PDNS.CryptokeysAPI AsGerd
 guardedCryptokeys _ = PDNS.CryptokeysAPI
     { PDNS.apiListCryptokeys  = const2 forbidden
     , PDNS.apiCreateCryptokey = const3 forbidden
@@ -190,7 +190,7 @@ guardedCryptokeys _ = PDNS.CryptokeysAPI
     }
 
 -- | Runs a ClientM action and throws client errors back as server errors.
-runProxy :: ClientM a -> GuardM a
+runProxy :: ClientM a -> GerdM a
 runProxy act = do
     ce <- envProxyEnv <$> ask
     r <- liftIO $ runClientM act ce
@@ -203,41 +203,41 @@ runProxy act = do
     responseFToServerErr (Response (Status code message) headers _version body)
       = ServerError code (BS8.unpack message) body (toList headers)
 
-forbidden :: GuardM a
+forbidden :: GerdM a
 forbidden = throwIO err403
 
 runLog :: MonadIO m => Int -> LoggingT m a -> m a
 runLog verbosity = runStdoutLoggingT . filterLogger (logFilter verbosity)
 
--- | A natural transformation turning a GuardM into a plain Servant handler.
+-- | A natural transformation turning a GerdM into a plain Servant handler.
 -- See https://docs.servant.dev/en/stable/cookbook/using-custom-monad/UsingCustomMonad.html
--- One of the core themes is that we want an unliftable monad. Inside GuardM we throw
+-- One of the core themes is that we want an unliftable monad. Inside GerdM we throw
 -- ServerError as an exception, and this handler catches them back. We also
 -- catch outstanding exceptions and produce a 500 error here instead. This allows
 -- middlewares to log these requests and responses as well.
-toHandler :: Env -> GuardM a -> Handler a
-toHandler env = Handler . ExceptT . flip runReaderT env . runLog (envVerbosity env) . runGuardM . catchRemEx
+toHandler :: Env -> GerdM a -> Handler a
+toHandler env = Handler . ExceptT . flip runReaderT env . runLog (envVerbosity env) . runGerdM . catchRemEx
   where
-    catchRemEx :: forall a. GuardM a -> GuardM (Either ServerError a)
+    catchRemEx :: forall a. GerdM a -> GerdM (Either ServerError a)
     catchRemEx handler = (Right <$> handler) `E.catches` exceptions
 
-    exceptions :: [E.Handler GuardM (Either ServerError a)]
+    exceptions :: [E.Handler GerdM (Either ServerError a)]
     exceptions = [ E.Handler prpgSrvErr
                 , E.Handler handleAnyException
                 ]
 
-    handleAnyException :: E.SomeException -> GuardM (Either ServerError a)
+    handleAnyException :: E.SomeException -> GerdM (Either ServerError a)
     handleAnyException ex = do
         logException ex
         pure (Left (err500 {errBody = "Internal error"}))
 
-    logException :: E.SomeException -> GuardM ()
+    logException :: E.SomeException -> GerdM ()
     logException ex = do
         $logError "Unhandled exception"
         $logError (T.pack (E.displayException ex))
 
     -- Propagate any thrown ServerError as Left for Servant.
-    prpgSrvErr :: ServerError -> GuardM (Either ServerError a)
+    prpgSrvErr :: ServerError -> GerdM (Either ServerError a)
     prpgSrvErr = pure . Left
 
 mkApp :: Int -> Config -> IO Application
@@ -252,7 +252,7 @@ mkApp verbosity cfg = do
 hush :: Either a b -> Maybe b
 hush = either (const Nothing) Just
 
-notePanic :: Maybe a -> T.Text -> GuardM a
+notePanic :: Maybe a -> T.Text -> GerdM a
 notePanic m t = maybe (logErrorN t >> throwIO err500) pure m
 
 -- | A custom authentication handler as per https://docs.servant.dev/en/stable/tutorial/Authentication.html#generalized-authentication

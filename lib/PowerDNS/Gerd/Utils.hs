@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell   #-}
-module PowerDNS.Guard.Utils
+module PowerDNS.Gerd.Utils
   ( const0
   , const1
   , const2
@@ -28,8 +28,8 @@ import qualified Data.Attoparsec.Text as ATT
 import qualified Data.Text as T
 import           Development.GitRev
 
-import           Paths_powerdns_guard (version)
-import           PowerDNS.Guard.Permission
+import           Paths_powerdns_gerd (version)
+import           PowerDNS.Gerd.Permission
 
 const0 :: a -> a
 const0 a = a

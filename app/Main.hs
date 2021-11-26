@@ -7,10 +7,10 @@ import System.IO (BufferMode(..), hSetBuffering, stderr, stdout)
 import Network.Wai.Handler.Warp (Settings, defaultSettings, runSettings,
                                  setHost, setPort)
 
-import PowerDNS.Guard.Config (Config(..), configHelp, loadConfig)
-import PowerDNS.Guard.Options (Command(..), ServerOpts(..), getCommand)
-import PowerDNS.Guard.Server (mkApp)
-import PowerDNS.Guard.Utils (ourVersion)
+import PowerDNS.Gerd.Config (Config(..), configHelp, loadConfig)
+import PowerDNS.Gerd.Options (Command(..), ServerOpts(..), getCommand)
+import PowerDNS.Gerd.Server (mkApp)
+import PowerDNS.Gerd.Utils (ourVersion)
 
 setBuffering :: IO ()
 setBuffering = do

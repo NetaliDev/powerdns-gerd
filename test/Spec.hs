@@ -15,8 +15,8 @@ import qualified Data.Text as T
 import           Network.HTTP.Client (defaultManagerSettings, newManager)
 import           Network.HTTP.Types (Status(statusCode))
 import           Network.Wai.Handler.Warp (testWithApplication)
-import           PowerDNS.Guard.Config
-import           PowerDNS.Guard.Server
+import           PowerDNS.Gerd.Config
+import           PowerDNS.Gerd.Server
 import           Servant.Client
 import           Test.HUnit (assertString)
 import           Test.HUnit.Lang
@@ -26,13 +26,13 @@ import           Test.Tasty.HUnit (testCase)
 import           PowerDNS.Client
 
 data TestEnv = TestEnv
-  { teGuardedEnv :: ClientEnv
+  { teGerdEnv :: ClientEnv
 
   , teUpstreamEnv :: ClientEnv
   }
 
-runGuardedAs :: T.Text -> ClientM a -> TestEnv -> IO (Either ClientError a)
-runGuardedAs user act te  = runClientM act (applyXApiKey (user <> ":correctSecret") (teGuardedEnv te))
+runGerdAs :: T.Text -> ClientM a -> TestEnv -> IO (Either ClientError a)
+runGerdAs user act te  = runClientM act (applyXApiKey (user <> ":correctSecret") (teGerdEnv te))
 
 unsafeRunUpstream :: ClientM a -> TestEnv -> IO a
 unsafeRunUpstream act te = either throwIO pure =<< runClientM act (teUpstreamEnv te)
@@ -122,7 +122,7 @@ tripleTest :: T.Text -> String -> Asserter a -> ClientM a -> TestEnv -> TestTree
 tripleTest user title asserter action te = testGroup title
   [ testCase "without authentication" $ assertUnauthenticated =<< runUnauth action te
   , testCase "without permissions" $ assertForbidden =<< runWithout action te
-  , testCase ("as " <> T.unpack user) $ asserter =<< runGuardedAs user action te
+  , testCase ("as " <> T.unpack user) $ asserter =<< runGerdAs user action te
   ]
 
 data Expected = ATXT
@@ -145,17 +145,17 @@ testDomainMatrix te = testGroup "updating records" $
       where
         casesForExpected :: T.Text -> Expected -> [TestTree]
         casesForExpected u expected = case expected of
-            ATXT -> [ withPresetZones te $ testCase (prefix <> " able to modify A records") (assertOk =<< runGuardedAs u (deleteRecords A domain) te)
-                    , withPresetZones te $ testCase (prefix <> " able to modify TXT records") (assertOk =<< runGuardedAs u (deleteRecords TXT domain) te)
-                    , withPresetZones te $ testCase (prefix <> " unable to modify AAAA records") (assertForbidden =<< runGuardedAs u (deleteRecords AAAA domain) te)
+            ATXT -> [ withPresetZones te $ testCase (prefix <> " able to modify A records") (assertOk =<< runGerdAs u (deleteRecords A domain) te)
+                    , withPresetZones te $ testCase (prefix <> " able to modify TXT records") (assertOk =<< runGerdAs u (deleteRecords TXT domain) te)
+                    , withPresetZones te $ testCase (prefix <> " unable to modify AAAA records") (assertForbidden =<< runGerdAs u (deleteRecords AAAA domain) te)
                     ]
-            None -> [ withPresetZones te $ testCase (prefix <> " unable to modify A records") (assertForbidden =<< runGuardedAs u (deleteRecords A domain) te)
-                    , withPresetZones te $ testCase (prefix <> " unable to modify TXT records") (assertForbidden =<< runGuardedAs u (deleteRecords TXT domain) te)
-                    , withPresetZones te $ testCase (prefix <> " unable to modify AAAA records") (assertForbidden =<< runGuardedAs u (deleteRecords AAAA domain) te)
+            None -> [ withPresetZones te $ testCase (prefix <> " unable to modify A records") (assertForbidden =<< runGerdAs u (deleteRecords A domain) te)
+                    , withPresetZones te $ testCase (prefix <> " unable to modify TXT records") (assertForbidden =<< runGerdAs u (deleteRecords TXT domain) te)
+                    , withPresetZones te $ testCase (prefix <> " unable to modify AAAA records") (assertForbidden =<< runGerdAs u (deleteRecords AAAA domain) te)
                     ]
-            Any ->  [ withPresetZones te $ testCase (prefix <> " able to modify A records") (assertOk =<< runGuardedAs u (deleteRecords A domain) te)
-                    , withPresetZones te $ testCase (prefix <> " able to modify TXT records") (assertOk =<< runGuardedAs u (deleteRecords TXT domain) te)
-                    , withPresetZones te $ testCase (prefix <> " able to modify AAAA records") (assertOk =<< runGuardedAs u (deleteRecords AAAA domain) te)
+            Any ->  [ withPresetZones te $ testCase (prefix <> " able to modify A records") (assertOk =<< runGerdAs u (deleteRecords A domain) te)
+                    , withPresetZones te $ testCase (prefix <> " able to modify TXT records") (assertOk =<< runGerdAs u (deleteRecords TXT domain) te)
+                    , withPresetZones te $ testCase (prefix <> " able to modify AAAA records") (assertOk =<< runGerdAs u (deleteRecords AAAA domain) te)
                     ]
           where
             prefix = "user \"" <> T.unpack u <> "\""
@@ -180,7 +180,7 @@ existingUsers = "user-without-permissions" : (fst <$> catMaybes (trd3 <$> domain
 -- the user that is expected to have modification power over that domain.
 -- The Expected element defines what the user is expected to be able to modify.
 --
--- This matrix must be kept in sync with powerdns-guard.test.conf
+-- This matrix must be kept in sync with powerdns-gerd.test.conf
 domainMatrix :: [(T.Text, T.Text, Maybe (T.Text, Expected))]
 domainMatrix =
   [ ("zone.", "rec1.user1.zone.", Just ("user1", ATXT))
@@ -252,10 +252,10 @@ withPresetZones te t = withResource unsafeMakeZones unsafeDeleteZones (const t)
         () <$ unsafeRunUpstream (deleteZone "localhost" zoneName) te
 
 runWithout :: ClientM a -> TestEnv -> IO (Either ClientError a)
-runWithout act = runGuardedAs "user-without-permissions" act
+runWithout act = runGerdAs "user-without-permissions" act
 
 runUnauth :: ClientM a -> TestEnv -> IO (Either ClientError a)
-runUnauth act = runClientM act . teGuardedEnv
+runUnauth act = runClientM act . teGerdEnv
 
 tests :: TestEnv -> TestTree
 tests te = testGroup "PowerDNS tests"
@@ -269,7 +269,7 @@ main = do
   hSetBuffering stderr LineBuffering
   isCI <- isJust <$> lookupEnv "IN_GITLAB_CI"
 
-  cfg <- loadConfig "./test/powerdns-guard.test.conf"
+  cfg <- loadConfig "./test/powerdns-gerd.test.conf"
 
   let (cfg', upstream) = if isCI
         then ( cfg { cfgUpstreamApiBaseUrl = "http://pdns:8081" }
@@ -279,11 +279,11 @@ main = do
 
   testWithApplication (mkApp 0 cfg') $ \port -> do
     mgr <- newManager defaultManagerSettings
-    let guardedUrl = BaseUrl Http "127.0.0.1" port ""
+    let gerdUrl = BaseUrl Http "127.0.0.1" port ""
+        gerdEnv = mkClientEnv mgr gerdUrl
         upstreamUrl = upstream
-        guardedEnv = mkClientEnv mgr guardedUrl
         upstreamEnv = applyXApiKey "secret" (mkClientEnv mgr upstreamUrl)
-        testEnv = TestEnv guardedEnv upstreamEnv
+        testEnv = TestEnv gerdEnv upstreamEnv
 
     unsafeCleanZones testEnv
     defaultMain (tests testEnv)

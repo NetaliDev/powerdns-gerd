@@ -1,5 +1,5 @@
 {-# LANGUAGE DataKinds #-}
-module PowerDNS.Guard.User.Types
+module PowerDNS.Gerd.User.Types
   ( User(..)
   )
 where
@@ -7,7 +7,7 @@ where
 import qualified Data.ByteString.Char8 as B8
 import qualified Data.Map as M
 import qualified Data.Text as T
-import           PowerDNS.Guard.Permission.Types
+import           PowerDNS.Gerd.Permission.Types
 
 data User = User
   { _uName :: T.Text

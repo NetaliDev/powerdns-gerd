@@ -1,8 +1,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module PowerDNS.Guard.Types
-  ( GuardM(..)
+module PowerDNS.Gerd.Types
+  ( GerdM(..)
   , Env(..)
-  , AsGuard
+  , AsGerd
   )
 where
 
@@ -20,6 +20,6 @@ data Env = Env
   , envVerbosity :: Int
   }
 
-type AsGuard = AsServerT GuardM
-newtype GuardM a = GuardM { runGuardM :: LoggingT (ReaderT Env IO) a }
+type AsGerd = AsServerT GerdM
+newtype GerdM a = GerdM { runGerdM :: LoggingT (ReaderT Env IO) a }
   deriving (Functor, Applicative, Monad, MonadUnliftIO, MonadIO, MonadLogger, MonadReader Env)

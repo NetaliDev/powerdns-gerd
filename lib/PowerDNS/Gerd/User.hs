@@ -1,4 +1,4 @@
-module PowerDNS.Guard.User
+module PowerDNS.Gerd.User
   ( User(..)
   , authenticate
   )
@@ -10,7 +10,7 @@ import           Data.Foldable (find)
 import qualified Data.Text as T
 import           Libsodium
 
-import           PowerDNS.Guard.User.Types
+import           PowerDNS.Gerd.User.Types
 
 authenticate :: [User] -> T.Text -> B8.ByteString -> IO (Maybe User)
 authenticate db name pass = maybe (pure Nothing)

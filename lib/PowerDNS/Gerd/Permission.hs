@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE OverloadedStrings #-}
-module PowerDNS.Guard.Permission
-  ( module PowerDNS.Guard.Permission.Types
+module PowerDNS.Gerd.Permission
+  ( module PowerDNS.Gerd.Permission.Types
   , zoneViewPerm
   , elaborateDomainPerms
   , filterDomainPerms
@@ -14,8 +14,8 @@ import qualified Data.Map as M
 import           Control.Monad (join)
 import qualified Data.Text as T
 import           PowerDNS.API (RecordType)
-import           PowerDNS.Guard.Permission.Types
-import           PowerDNS.Guard.User
+import           PowerDNS.Gerd.Permission.Types
+import           PowerDNS.Gerd.User
 
 matchesDomainPat :: DomainLabels -> DomainPattern -> Bool
 matchesDomainPat (DomainLabels x) (DomainPattern y) = go (reverse x) (reverse y)

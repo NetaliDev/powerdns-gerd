@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures    #-}
 {-# LANGUAGE OverloadedStrings #-}
-module PowerDNS.Guard.Permission.Types
+module PowerDNS.Gerd.Permission.Types
   ( ZoneId(..)
   , DomainKind(..)
   , Domain(..)

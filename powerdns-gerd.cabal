@@ -1,5 +1,5 @@
 cabal-version:      3.0
-name:               powerdns-guard
+name:               powerdns-gerd
 version:            0.1.0.0
 maintainer:         dminuoso+git@icloud.com
 
@@ -13,7 +13,7 @@ common all
 common exes
     ghc-options:      -rtsopts -threaded -with-rtsopts=-qg
 
-test-suite powerdns-guard-test
+test-suite powerdns-gerd-test
     import:           all, exes
     type:             exitcode-stdio-1.0
     main-is:          Spec.hs
@@ -28,34 +28,34 @@ test-suite powerdns-guard-test
                     , http-client
                     , http-types
                     , powerdns
-                    , powerdns-guard-lib
+                    , powerdns-gerd-lib
                     , text
                     , warp
                     , wai-extra
                     , call-stack
 
-executable powerdns-guard
+executable powerdns-gerd
     import:           all, exes
     main-is:          Main.hs
-    build-depends:  , powerdns-guard-lib
+    build-depends:  , powerdns-gerd-lib
                     , warp
     hs-source-dirs:   app
     default-language: Haskell2010
 
-library powerdns-guard-lib
+library powerdns-gerd-lib
     import:           all
-    exposed-modules:  PowerDNS.Guard.Options
-                      PowerDNS.Guard.Server
-                      PowerDNS.Guard.Config
-                      PowerDNS.Guard.Utils
+    exposed-modules:  PowerDNS.Gerd.Options
+                      PowerDNS.Gerd.Server
+                      PowerDNS.Gerd.Config
+                      PowerDNS.Gerd.Utils
 
-    other-modules:    PowerDNS.Guard.API
-                      PowerDNS.Guard.User
-                      PowerDNS.Guard.User.Types
-                      PowerDNS.Guard.Types
-                      PowerDNS.Guard.Permission
-                      PowerDNS.Guard.Permission.Types
-                      Paths_powerdns_guard
+    other-modules:    PowerDNS.Gerd.API
+                      PowerDNS.Gerd.User
+                      PowerDNS.Gerd.User.Types
+                      PowerDNS.Gerd.Types
+                      PowerDNS.Gerd.Permission
+                      PowerDNS.Gerd.Permission.Types
+                      Paths_powerdns_gerd
 
     build-depends:    attoparsec
                     , bytestring

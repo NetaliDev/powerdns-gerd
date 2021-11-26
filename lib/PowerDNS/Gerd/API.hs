@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeFamilies  #-}
 {-# LANGUAGE TypeOperators #-}
-module PowerDNS.Guard.API
+module PowerDNS.Gerd.API
   ( API
   , api
   , GuardedAPI(..)
@@ -15,7 +15,7 @@ import           Servant.API.Generic
 import           Servant.Server.Experimental.Auth (AuthServerData)
 
 import           Data.Proxy
-import           PowerDNS.Guard.User
+import           PowerDNS.Gerd.User
 
 type instance AuthServerData (AuthProtect "xapi") = User
 
