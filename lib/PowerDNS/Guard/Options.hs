@@ -10,6 +10,7 @@ import Options.Applicative
 data Command
   = CmdRunServer ServerOpts
   | CmdConfigHelp
+  | CmdVersion
 
 data ServerOpts = ServerOpts
   { optVerbosity :: Int
@@ -31,6 +32,7 @@ cmd :: Parser Command
 cmd = subparser $ mconcat
   [ command "run-server" (info serverOpts (progDesc "Run the server" ))
   , command "config-help" (info (pure CmdConfigHelp) (progDesc "Display config help" ))
+  , command "version" (info (pure CmdVersion) (progDesc "Display version"))
   ]
 
 serverOpts :: Parser Command

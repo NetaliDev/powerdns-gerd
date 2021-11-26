@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell   #-}
 module PowerDNS.Guard.Utils
   ( const0
   , const1
@@ -12,17 +13,22 @@ module PowerDNS.Guard.Utils
   , parseDomainPattern
   , logFilter
   , pprElabDomainPerm
+  , ourVersion
   )
 where
 
 import           Control.Applicative (optional, some)
 import           Control.Monad.Logger (LogLevel(..), LogSource)
-import qualified Data.Attoparsec.Text as ATT
 import           Data.Char (isAsciiLower, isAsciiUpper, isDigit)
-import           Data.List (intersperse)
-import qualified Data.Text as T
-
 import           Data.Foldable (asum)
+import           Data.List (intersperse)
+import           Data.Version (showVersion)
+
+import qualified Data.Attoparsec.Text as ATT
+import qualified Data.Text as T
+import           Development.GitRev
+
+import           Paths_powerdns_guard (version)
 import           PowerDNS.Guard.Permission
 
 const0 :: a -> a
@@ -138,3 +144,16 @@ pprElabDomainPerm (ElabDomainPerm zone pat allowed)
 
 quoted :: T.Text -> T.Text
 quoted x = "\"" <> x <> "\""
+
+ourVersion :: String
+ourVersion = unlines [ "version: " <> showVersion version
+                     , "build: "   <> $(gitBranch)
+                                   <> "@"
+                                   <> $(gitHash)
+                                   <> " (" <> $(gitCommitDate) <> ")"
+                                   <> dirty
+
+                     ]
+  where
+        dirty | $(gitDirty) = " (uncommitted files present)"
+              | otherwise   = ""

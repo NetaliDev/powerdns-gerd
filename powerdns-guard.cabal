@@ -47,18 +47,20 @@ library powerdns-guard-lib
     exposed-modules:  PowerDNS.Guard.Options
                       PowerDNS.Guard.Server
                       PowerDNS.Guard.Config
+                      PowerDNS.Guard.Utils
 
     other-modules:    PowerDNS.Guard.API
                       PowerDNS.Guard.User
                       PowerDNS.Guard.User.Types
                       PowerDNS.Guard.Types
-                      PowerDNS.Guard.Utils
                       PowerDNS.Guard.Permission
                       PowerDNS.Guard.Permission.Types
+                      Paths_powerdns_guard
 
     build-depends:    attoparsec
                     , bytestring
                     , config-schema
+                    , gitrev
                     , libsodium
                     , monad-logger
                     , mtl
