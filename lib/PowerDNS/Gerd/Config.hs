@@ -41,8 +41,6 @@ data Config = Config
 optSectionDefault' :: a -> T.Text -> ValueSpec a -> T.Text -> SectionsSpec a
 optSectionDefault' def sect spec descr = fromMaybe def <$> optSection' sect spec descr
 
-
-
 absRecordPermSpec :: ValueSpec (DomainPattern, AllowSpec)
 absRecordPermSpec = sectionsSpec "abs-record-spec" $ do
   n <- reqSection' "name" domainPatSpec "The record name(s) that can be managed. Must be absolute with a trailing dot."
