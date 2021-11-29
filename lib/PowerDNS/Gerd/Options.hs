@@ -16,6 +16,7 @@ import PowerDNS.Gerd.User.Types (MemLimit(..), OpsLimit(..))
 data Command
   = CmdRunServer ServerOpts
   | CmdConfigHelp
+  | CmdConfigValidate FilePath
   | CmdVersion
   | CmdDigest DigestOpts
 
@@ -42,14 +43,18 @@ optInfo = info (cmd <**> helper)
 
 cmd :: Parser Command
 cmd = subparser $ mconcat
-  [ command "run-server" (info serverOpts (progDesc "Run the server" ))
+  [ command "run-server" (info cmdRunServer (progDesc "Run the server" ))
   , command "config-help" (info (pure CmdConfigHelp) (progDesc "Display config help" ))
-  , command "digest" (info digestOpts (progDesc "Digest a password"))
+  , command "config-validate" (info cmdConfigValidate (progDesc "Validate config file"))
+  , command "digest" (info cmdDigest (progDesc "Digest a password"))
   , command "version" (info (pure CmdVersion) (progDesc "Display version"))
   ]
 
-digestOpts :: Parser Command
-digestOpts = CmdDigest <$> (go <**> helper)
+cmdConfigValidate :: Parser Command
+cmdConfigValidate = CmdConfigValidate <$> parseConfigFile
+
+cmdDigest :: Parser Command
+cmdDigest = CmdDigest <$> (go <**> helper)
   where go = DigestOpts <$> parseMemLimit
                         <*> parseOpsLimit
 
@@ -96,8 +101,8 @@ parseOpsLimit = option (maybeReader reader) ( short 'm'
     reader :: String -> Maybe OpsLimit
     reader = (`lookup` vals)
 
-serverOpts :: Parser Command
-serverOpts = (CmdRunServer <$> go) <**> helper
+cmdRunServer :: Parser Command
+cmdRunServer = (CmdRunServer <$> go) <**> helper
   where go = ServerOpts <$> parseVerbosity
                         <*> parseConfigFile
 

@@ -7,6 +7,7 @@ import System.IO (BufferMode(..), hSetBuffering, stderr, stdout)
 import Network.Wai.Handler.Warp (Settings, defaultSettings, runSettings,
                                  setHost, setPort)
 
+import PowerDNS.Gerd.CmdConfigValidate
 import PowerDNS.Gerd.CmdDigest
 import PowerDNS.Gerd.Config (Config(..), configHelp, loadConfig)
 import PowerDNS.Gerd.Options (Command(..), ServerOpts(..), getCommand)
@@ -24,10 +25,11 @@ main = do
   runCommand =<< getCommand =<< getArgs
 
 runCommand :: Command -> IO ()
-runCommand CmdVersion          = putStrLn ourVersion >> exitSuccess
-runCommand CmdConfigHelp       = putStrLn configHelp >> exitSuccess
-runCommand (CmdRunServer opts) = runServer opts
-runCommand (CmdDigest opts)    = runDigest opts
+runCommand CmdVersion               = putStrLn ourVersion >> exitSuccess
+runCommand CmdConfigHelp            = putStrLn configHelp >> exitSuccess
+runCommand (CmdConfigValidate path) = runConfigValidate path
+runCommand (CmdRunServer opts)      = runServer opts
+runCommand (CmdDigest opts)         = runDigest opts
 
 runServer :: ServerOpts -> IO ()
 runServer opts = do
