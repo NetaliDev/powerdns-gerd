@@ -16,11 +16,13 @@ build:linux:
     paths:
       - build/test/powerdns-gerd-test
       - build/test/powerdns-gerd.test.conf
+      - build/powerdns-gerd
   script:
     - mkdir -p build/test
     - cabal build -j4 --enable-tests powerdns-gerd
     - cabal build -j4 --enable-tests powerdns-gerd:test:powerdns-gerd-test
     - cp $(cabal -v0 list-bin --enable-tests powerdns-gerd:test:powerdns-gerd-test) build/test/powerdns-gerd-test
+    - cp $(cabal -v0 list-bin --enable-tests powerdns-gerd) build/powerdns-gerd
     - cp test/powerdns-gerd.test.conf build/test/powerdns-gerd.test.conf
 
 test:
