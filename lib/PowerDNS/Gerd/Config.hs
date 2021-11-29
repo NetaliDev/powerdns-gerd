@@ -9,11 +9,9 @@ module PowerDNS.Gerd.Config
   )
 where
 
-import           Control.Exception (SomeException, displayException)
+import           Control.Monad (when)
 import           Data.Maybe (fromMaybe)
 import           Data.String (fromString)
-import           System.Exit (exitFailure)
-import           System.IO (hPutStrLn, stderr)
 
 import           Config.Schema
 import qualified Data.Text as T
@@ -21,10 +19,10 @@ import qualified Data.Text.Encoding as T
 import           Data.Word (Word16)
 import           Network.Wai.Handler.Warp (HostPreference)
 import qualified Text.PrettyPrint as Pretty
-import           UnliftIO.Exception (catch)
 
 import           Data.Bifunctor (first)
 import qualified Data.Map as M
+import qualified Data.Set as S
 import           PowerDNS.API.Zones
 import           PowerDNS.Gerd.Permission
 import           PowerDNS.Gerd.User
@@ -171,13 +169,27 @@ userSpec = sectionsSpec "user" $ do
   pure User{..}
 
 loadConfig :: FilePath -> IO Config
-loadConfig path = loadValueFromFile configSpec path `catch` onError
-  where
-    onError :: SomeException -> IO a
-    onError ex = do
-      hPutStrLn stderr "Error while parsing config"
-      hPutStrLn stderr (displayException ex)
-      exitFailure
+loadConfig path = do
+  cfg <- loadValueFromFile configSpec path
+  validate cfg
+  pure cfg
 
 configHelp :: String
 configHelp = Pretty.render (generateDocs configSpec)
+
+validate :: Config -> IO ()
+validate cfg = do
+  let dups = duplicateUsers cfg
+  when (not (null dups)) $
+    fail ("Duplicate users: " <> T.unpack (T.intercalate ", " dups))
+
+duplicateUsers :: Config -> [T.Text]
+duplicateUsers cfg = go mempty (cfgUsers cfg)
+  where
+    go _seen []    = []
+    go seen (x:xs) | name <- _uName x
+                   , name `S.member` seen
+                   = name : go seen xs
+
+                   | otherwise
+                   = go (S.insert (_uName x) seen) xs

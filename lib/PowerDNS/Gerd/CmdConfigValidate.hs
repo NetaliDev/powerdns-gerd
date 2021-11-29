@@ -9,7 +9,7 @@ import System.IO
 import UnliftIO (SomeException, displayException, handle)
 
 runConfigValidate :: FilePath -> IO ()
-runConfigValidate path = handle failure (loadConfig path >> success)
+runConfigValidate path = handle failure (() <$ loadConfig path) >> success
   where
     success :: IO ()
     success = do
