@@ -48,8 +48,6 @@ runDigest :: DigestOpts -> IO ()
 runDigest opts = do
   putStr "Password> "
   pass <- getPassword
-  when (not (isProperStr pass)) $
-    fail "Password not an ASCII string"
 
   let pass' = BS8.pack pass
 
@@ -63,18 +61,6 @@ getPassword = do
   putChar '\n'
 
   return pass
-
-isProperStr :: String -> Bool
-isProperStr = all proper
-  where
-    proper :: Char -> Bool
-    proper = isAsciiLower
-        .||. isAsciiUpper
-        .||. isDigit
-
-(.||.) :: (a -> Bool) -> (a -> Bool) -> a -> Bool
-(.||.) = liftA2 (||)
-
 
 withEcho :: Bool -> IO a -> IO a
 withEcho echo action = do
