@@ -32,10 +32,9 @@ import           Servant.Server (Application, Handler(..), ServerError(..),
                                  err400, err401, err500)
 import           Servant.Server.Experimental.Auth (AuthHandler, mkAuthHandler)
 import           Servant.Server.Generic (genericServeTWithContext)
-import           UnliftIO (MonadIO, liftIO)
+import           UnliftIO (MonadIO, TVar, liftIO, readTVarIO)
 import qualified UnliftIO.Exception as E
 
-import qualified Data.Map as M
 import           PowerDNS.Gerd.Config (Config(..))
 import           PowerDNS.Gerd.Server.Endpoints
 import           PowerDNS.Gerd.Types
@@ -76,22 +75,20 @@ toHandler env = Handler . ExceptT . flip runReaderT env . runLog (envVerbosity e
     prpgSrvErr :: ServerError -> GerdM (Either ServerError a)
     prpgSrvErr = pure . Left
 
-mkApp :: Int -> Config -> IO Application
+mkApp :: Int -> TVar Config -> IO Application
 mkApp verbosity cfg = do
-  url <- parseBaseUrl (T.unpack (cfgUpstreamApiBaseUrl cfg))
+  cfg' <- readTVarIO cfg
+  url <- parseBaseUrl (T.unpack (cfgUpstreamApiBaseUrl cfg'))
   mgr <- newManager tlsManagerSettings
-  let clientEnv =  PDNS.applyXApiKey (cfgUpstreamApiKey cfg) (mkClientEnv mgr url)
+  let clientEnv =  PDNS.applyXApiKey (cfgUpstreamApiKey cfg') (mkClientEnv mgr url)
   let env = Env clientEnv verbosity
 
   pure (genericServeTWithContext (toHandler env) server (ourContext cfg))
 
 -- | A custom authentication handler as per https://docs.servant.dev/en/stable/tutorial/Authentication.html#generalized-authentication
-authHandler :: Config -> AuthHandler Request User
+authHandler :: TVar Config -> AuthHandler Request User
 authHandler cfg = mkAuthHandler handler
   where
-    db :: M.Map Username User
-    db = cfgUsers cfg
-
     note401 :: Maybe a -> BSL.ByteString -> Handler a
     note401 m reason = maybe (throw401 reason) pure m
 
@@ -104,6 +101,7 @@ authHandler cfg = mkAuthHandler handler
     decodeLenient = T.decodeUtf8With lenientDecode
 
     handler req = do
+        db <- cfgUsers <$> readTVarIO cfg
         apiKey <- lookup "X-API-Key" (requestHeaders req) `note401` "Missing API key"
         case BS.split (fromIntegral (ord ':')) apiKey of
             [user, hash] -> do mUser <- liftIO $ authenticate db (decodeLenient user) hash
@@ -112,5 +110,5 @@ authHandler cfg = mkAuthHandler handler
 
 
 type CtxtList = AuthHandler Request User ': '[]
-ourContext :: Config -> Context CtxtList
+ourContext :: TVar Config -> Context CtxtList
 ourContext cfg = authHandler cfg :. EmptyContext

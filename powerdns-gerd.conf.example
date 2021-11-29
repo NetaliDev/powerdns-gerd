@@ -15,7 +15,7 @@ users:
     zones:
       * zone: "service.wobcom.de."
         domains:
-          * { name: "*.netbox.", types: [TXT] }
+          * { name: "*.netbox.service.wobcom.de.", types: [TXT] }
 
   * name: "lego-grafana"
     passHash: "$argon2id$v=19$m=8,t=1,p=1$cjV5UDFCSHRSaXJ0am9PZg$OIscttF7A8I40AK9Zxa3Sw"

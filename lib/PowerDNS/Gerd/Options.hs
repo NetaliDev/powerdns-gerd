@@ -14,7 +14,7 @@ import Data.Tuple (swap)
 import PowerDNS.Gerd.User.Types (MemLimit(..), OpsLimit(..))
 
 data Command
-  = CmdRunServer ServerOpts
+  = CmdServer ServerOpts
   | CmdConfigHelp
   | CmdConfigValidate FilePath
   | CmdVersion
@@ -43,7 +43,7 @@ optInfo = info (cmd <**> helper)
 
 cmd :: Parser Command
 cmd = subparser $ mconcat
-  [ command "run-server" (info cmdRunServer (progDesc "Run the server" ))
+  [ command "run-server" (info cmdServer (progDesc "Run the server" ))
   , command "config-help" (info (pure CmdConfigHelp) (progDesc "Display config help" ))
   , command "config-validate" (info cmdConfigValidate (progDesc "Validate config file"))
   , command "digest" (info cmdDigest (progDesc "Digest a password"))
@@ -101,8 +101,8 @@ parseOpsLimit = option (maybeReader reader) ( short 'm'
     reader :: String -> Maybe OpsLimit
     reader = (`lookup` vals)
 
-cmdRunServer :: Parser Command
-cmdRunServer = (CmdRunServer <$> go) <**> helper
+cmdServer :: Parser Command
+cmdServer = (CmdServer <$> go) <**> helper
   where go = ServerOpts <$> parseVerbosity
                         <*> parseConfigFile
 

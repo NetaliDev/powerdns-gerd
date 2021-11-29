@@ -7,7 +7,6 @@ extra-source-files: CHANGELOG.md
 
 common all
     build-depends:    base ^>= { 4.12.0.0, 4.14.1.0 }
-                    , warp ^>= 3.3.18
                     , powerdns ^>= 0.2.0
     ghc-options:      -Wall -Werror=incomplete-patterns -fno-warn-unticked-promoted-constructors
     default-language: Haskell2010
@@ -15,8 +14,11 @@ common all
 common exes
     ghc-options:      -rtsopts -threaded -with-rtsopts=-qg
 
+common warp
+    build-depends:    warp ^>= 3.3.18
+
 test-suite powerdns-gerd-test
-    import:           all, exes
+    import:           all, exes, warp
     type:             exitcode-stdio-1.0
     main-is:          Spec.hs
     other-modules:    Utils
@@ -42,7 +44,7 @@ executable powerdns-gerd
     default-language: Haskell2010
 
 library powerdns-gerd-lib
-    import:           all
+    import:           all, warp
     exposed-modules:  PowerDNS.Gerd.Options
                       PowerDNS.Gerd.Server
                       PowerDNS.Gerd.Server.Endpoints
@@ -50,6 +52,7 @@ library powerdns-gerd-lib
                       PowerDNS.Gerd.CmdDigest
                       PowerDNS.Gerd.CmdConfig
                       PowerDNS.Gerd.CmdVersion
+                      PowerDNS.Gerd.CmdServer
                       PowerDNS.Gerd.Utils
 
     other-modules:    PowerDNS.Gerd.API
@@ -79,6 +82,7 @@ library powerdns-gerd-lib
                     , servant-server ^>= 0.18.3
                     , text ^>= 1.2.4
                     , transformers ^>= 0.5.6
-                    , unliftio ^>= 0.2.20
+                    , unliftio ^>= 0.2
+                    , unix
                     , wai ^>= 3.2.3
     hs-source-dirs:  lib
