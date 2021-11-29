@@ -13,6 +13,8 @@ module PowerDNS.Gerd.Utils
   , parseDomainPattern
   , logFilter
   , pprElabDomainPerm
+  , pprDomainPattern
+  , quoted
   , ourVersion
   )
 where

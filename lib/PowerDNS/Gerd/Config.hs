@@ -9,7 +9,7 @@ module PowerDNS.Gerd.Config
   )
 where
 
-import           Control.Monad (when)
+import           Control.Monad (unless, when)
 import           Data.Maybe (fromMaybe)
 import           Data.String (fromString)
 
@@ -21,6 +21,7 @@ import           Network.Wai.Handler.Warp (HostPreference)
 import qualified Text.PrettyPrint as Pretty
 
 import           Data.Bifunctor (first)
+import           Data.Foldable (for_)
 import qualified Data.Map as M
 import qualified Data.Set as S
 import           PowerDNS.API.Zones
@@ -178,9 +179,9 @@ configHelp = Pretty.render (generateDocs configSpec)
 
 validate :: Config -> IO ()
 validate cfg = do
-  let dups = duplicateUsers cfg
-  when (not (null dups)) $
-    fail ("Duplicate users: " <> T.unpack (T.intercalate ", " dups))
+  validateUniqueUsers cfg
+  validateDomainsInZone cfg
+
 
 duplicateUsers :: Config -> [T.Text]
 duplicateUsers cfg = go mempty (cfgUsers cfg)
@@ -192,3 +193,19 @@ duplicateUsers cfg = go mempty (cfgUsers cfg)
 
                    | otherwise
                    = go (S.insert (_uName x) seen) xs
+
+
+validateUniqueUsers :: Config -> IO ()
+validateUniqueUsers cfg = do
+  let dups = duplicateUsers cfg
+  when (not (null dups)) $
+    fail ("Duplicate users: " <> T.unpack (T.intercalate ", " dups))
+
+validateDomainsInZone :: Config -> IO ()
+validateDomainsInZone cfg = do
+  for_ (cfgUsers cfg) $ \user -> do
+    for_ (M.toList (_uZonePerms  user)) $ \(ZoneId zone, perms) -> do
+      for_ (zpDomainPerms perms) $ \(pat, _allow) -> do
+        let pat' = pprDomainPattern pat
+        unless (zone `T.isSuffixOf` pat') $
+          fail ("Pattern is out of zone " <> T.unpack (quoted zone) <> ": " <> T.unpack pat')
