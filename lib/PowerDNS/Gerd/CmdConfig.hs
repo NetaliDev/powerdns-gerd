@@ -1,12 +1,18 @@
-module PowerDNS.Gerd.CmdConfigValidate
+module PowerDNS.Gerd.CmdConfig
   ( runConfigValidate
+  , runConfigHelp
   )
 where
 
-import PowerDNS.Gerd.Config (loadConfig)
+import PowerDNS.Gerd.Config (configHelp, loadConfig)
 import System.Exit (exitFailure, exitSuccess)
 import System.IO
 import UnliftIO (SomeException, displayException, handle)
+
+runConfigHelp :: IO ()
+runConfigHelp = do
+  putStrLn configHelp
+  exitSuccess
 
 runConfigValidate :: FilePath -> IO ()
 runConfigValidate path = handle failure (() <$ loadConfig path) >> success
