@@ -14,14 +14,14 @@ build:linux:
     - haskell
   artifacts:
     paths:
-      - build/test/powerdns-guard-test
-      - build/test/powerdns-guard.test.conf
+      - build/test/powerdns-gerd-test
+      - build/test/powerdns-gerd.test.conf
   script:
     - mkdir -p build/test
-    - cabal build -j4 --enable-tests powerdns-guard
-    - cabal build -j4 --enable-tests powerdns-guard:test:powerdns-guard-test
-    - cp $(cabal -v0 list-bin --enable-tests powerdns-guard:test:powerdns-guard-test) build/test/powerdns-guard-test
-    - cp test/powerdns-guard.test.conf build/test/powerdns-guard.test.conf
+    - cabal build -j4 --enable-tests powerdns-gerd
+    - cabal build -j4 --enable-tests powerdns-gerd:test:powerdns-gerd-test
+    - cp $(cabal -v0 list-bin --enable-tests powerdns-gerd:test:powerdns-gerd-test) build/test/powerdns-gerd-test
+    - cp test/powerdns-gerd.test.conf build/test/powerdns-gerd.test.conf
 
 test:
   image: ubuntu:focal
@@ -31,7 +31,7 @@ test:
   dependencies:
     - build:linux
   services:
-    - name: registry.gitlab.com/wobcom/haskell/powerdns-guard:pdns-service
+    - name: registry.gitlab.com/wobcom/haskell/powerdns-gerd:pdns-service
       alias: pdns
   cache:
     paths:
@@ -43,4 +43,4 @@ test:
     - apt update
     - apt install --yes --no-install-recommends zlib1g libsodium23
     - cd build/
-    - ./test/powerdns-guard-test
+    - ./test/powerdns-gerd-test
