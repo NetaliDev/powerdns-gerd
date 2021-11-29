@@ -80,7 +80,7 @@ relDomainP = T.intercalate "." <$> relDomainLabelsP
 
 label :: ATT.Parser T.Text
 label = do
-  i <- letter1
+  i <- letDig1
   m <- optional letDigHyp1
   case m of
     Nothing -> pure i
@@ -88,9 +88,6 @@ label = do
            -> pure (i <> r)
            | otherwise
            -> ((i <> r) <>) <$> letDig1
-
-letter1 :: ATT.Parser T.Text
-letter1 = ATT.takeWhile1 isAsciiLetter
 
 -- | Parse 1 or more letters or digits
 letDig1 :: ATT.Parser T.Text
