@@ -17,11 +17,10 @@ module PowerDNS.Gerd.Utils
   )
 where
 
-import           Control.Applicative (optional, some)
+import           Control.Applicative (many, optional)
 import           Control.Monad.Logger (LogLevel(..), LogSource)
 import           Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 import           Data.Foldable (asum)
-import           Data.List (intersperse)
 import           Data.Version (showVersion)
 
 import qualified Data.Attoparsec.Text as ATT
@@ -59,7 +58,7 @@ parseDomainPattern :: T.Text -> Either String DomainPattern
 parseDomainPattern = ATT.parseOnly (domainPatternP <* ATT.endOfInput)
 
 domainPatternP :: ATT.Parser DomainPattern
-domainPatternP = DomainPattern <$> ((:) <$> domainLabelPatternInitP <*> some domainLabelPatternP)
+domainPatternP = DomainPattern <$> ((:) <$> domainLabelPatternInitP <*> many domainLabelPatternP)
 
 domainLabelPatternInitP :: ATT.Parser DomainLabelPattern
 domainLabelPatternInitP = asum [ DomLiteral <$> label <* ATT.string "."
@@ -77,9 +76,7 @@ relDomainLabelsP :: ATT.Parser [T.Text]
 relDomainLabelsP = label `ATT.sepBy` ATT.string "."
 
 relDomainP :: ATT.Parser T.Text
-relDomainP = do
-  r <- relDomainLabelsP
-  pure (mconcat (intersperse "." r))
+relDomainP = T.intercalate "." <$> relDomainLabelsP
 
 label :: ATT.Parser T.Text
 label = do
