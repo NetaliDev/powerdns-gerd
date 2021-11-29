@@ -3,9 +3,7 @@ module PowerDNS.Gerd.CmdDigest
   )
 where
 
-import           Control.Applicative (liftA2)
 import           Control.Monad (when)
-import           Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Char8 as BS8
