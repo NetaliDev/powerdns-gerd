@@ -27,7 +27,6 @@ import           PowerDNS.Client
 
 data TestEnv = TestEnv
   { teGerdEnv :: ClientEnv
-
   , teUpstreamEnv :: ClientEnv
   }
 

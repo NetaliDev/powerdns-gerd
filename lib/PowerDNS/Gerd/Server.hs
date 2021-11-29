@@ -45,6 +45,7 @@ import           UnliftIO (MonadIO, liftIO, throwIO)
 import qualified UnliftIO.Exception as E
 
 import           Control.Monad (filterM)
+import qualified Data.Map as M
 import           PowerDNS.Gerd.API
 import           PowerDNS.Gerd.Config (Config(..))
 import           PowerDNS.Gerd.Permission
@@ -259,7 +260,7 @@ notePanic m t = maybe (logErrorN t >> throwIO err500) pure m
 authHandler :: Config -> AuthHandler Request User
 authHandler cfg = mkAuthHandler handler
   where
-    db :: [User]
+    db :: M.Map Username User
     db = cfgUsers cfg
 
     note401 :: Maybe a -> BSL.ByteString -> Handler a
