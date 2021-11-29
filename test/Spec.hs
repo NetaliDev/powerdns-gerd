@@ -195,8 +195,6 @@ domainMatrix =
   , ("zone.", "sub.rec7.user1.zone.", Just ("user1", ATXT))
   , ("zone.", "sub.rec8.user1.zone.", Just ("user1", Any))
 
-  , ("user2.zone.", "sub.user2.zone.", Just ("user2", ATXT))
-  , ("user2.zone.", "user2.zone.", Just ("user2", ATXT))
   , ("zone.", "globstar.user2.zone.", Nothing)
   , ("zone.", "sub.globstar.user2.zone.", Just ("user2", ATXT))
   , ("zone.", "sub.sub.globstar.user2.zone.", Just ("user2", ATXT))

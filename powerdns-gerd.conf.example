@@ -8,8 +8,7 @@ users:
     zones:
       * zone: "example.com."
         domains:
-          * { name: "3foo.", types: [A, AAAA] }
-          * { name: any, types: [MX, TXT] }
+          * { name: "1.example.com.", types: [A, AAAA] }
           * { name: "foo.example.com.", types: any }
   * name: "lego-netbox"
     passHash: "$argon2id$v=19$m=8,t=1,p=1$cjV5UDFCSHRSaXJ0am9PZg$OIscttF7A8I40AK9Zxa3Sw"

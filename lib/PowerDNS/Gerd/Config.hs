@@ -77,8 +77,7 @@ recordTypeSpec = MayModifyAnyRecordType <$ atomSpec "any"
              <!> MayModifyRecordType <$> listSpec recordAtomSpec
 
 domainPatSpec :: ValueSpec DomainPattern
-domainPatSpec = DomainPattern [DomGlobStar] <$ atomSpec "any"
-            <!> customSpec "Absolute domain (with trailing dot). A leading wildcard like \"*.foo\" or \"*\" is allowed"
+domainPatSpec = customSpec "Absolute domain (with trailing dot). A leading wildcard like \"*.foo\" or \"*\" is allowed"
                             textSpec
                             (first T.pack . parseDomainPattern)
 
