@@ -45,6 +45,7 @@ library powerdns-gerd-lib
     import:           all
     exposed-modules:  PowerDNS.Gerd.Options
                       PowerDNS.Gerd.Server
+                      PowerDNS.Gerd.Server.Endpoints
                       PowerDNS.Gerd.Config
                       PowerDNS.Gerd.CmdDigest
                       PowerDNS.Gerd.CmdConfig

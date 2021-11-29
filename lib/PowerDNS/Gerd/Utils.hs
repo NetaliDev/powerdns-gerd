@@ -8,6 +8,7 @@ module PowerDNS.Gerd.Utils
   , const3
   , const4
   , const5
+  , hush
   , parseAbsDomain
   , parseAbsDomainLabels
   , parseDomainPattern
@@ -49,6 +50,9 @@ const4 a _ _ _ _ = a
 
 const5 :: a -> b -> c -> d -> e -> f -> a
 const5 a _ _ _ _ _ = a
+
+hush :: Either a b -> Maybe b
+hush = either (const Nothing) Just
 
 parseAbsDomain :: T.Text -> Either String T.Text
 parseAbsDomain = ATT.parseOnly (absDomainP <* ATT.endOfInput)
