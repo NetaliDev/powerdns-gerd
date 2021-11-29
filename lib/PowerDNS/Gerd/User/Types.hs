@@ -1,6 +1,8 @@
 {-# LANGUAGE DataKinds #-}
 module PowerDNS.Gerd.User.Types
   ( User(..)
+  , MemLimit(..)
+  , OpsLimit(..)
   )
 where
 
@@ -15,3 +17,17 @@ data User = User
   , _uZonePerms :: M.Map ZoneId ZonePermissions
   , _uRecordPerms :: PermissionList
   } deriving Show
+
+data MemLimit = MemMin
+              | MemInteractive
+              | MemModerate
+              | MemSensitive
+              | MemMax
+              deriving (Eq, Ord, Show, Read)
+
+data OpsLimit = OpsMin
+              | OpsInteractive
+              | OpsModerate
+              | OpsSensitive
+              | OpsMax
+              deriving (Eq, Ord, Show, Read)
