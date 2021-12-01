@@ -31,7 +31,7 @@ build:linux:static:
     key: powerdns-gerd-static
     paths:
       - dist-newstyle/
-      - /root/.cabal
+      - /root/.cabal/
   stage: build
   tags:
     - docker
