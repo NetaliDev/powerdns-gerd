@@ -43,6 +43,7 @@ runServerLogged opts = do
     shutdownHandler io closeSocket = liftIO $ do
       Posix.installHandler Posix.sigTERM (Posix.Catch $ io goodbye >> closeSocket) Nothing
       Posix.installHandler Posix.sigINT (Posix.Catch $ io goodbye >> closeSocket) Nothing
+
       pure ()
 
     welcome = logInfoN "PowerDNS-Gerd started."

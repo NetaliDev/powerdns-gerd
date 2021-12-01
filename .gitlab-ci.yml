@@ -19,10 +19,11 @@ build:linux:
       - build/powerdns-gerd
   script:
     - mkdir -p build/test
-    - cabal build -j4 --enable-tests powerdns-gerd
-    - cabal build -j4 --enable-tests powerdns-gerd:test:powerdns-gerd-test
-    - cp $(cabal -v0 list-bin --enable-tests powerdns-gerd:test:powerdns-gerd-test) build/test/powerdns-gerd-test
-    - cp $(cabal -v0 list-bin --enable-tests powerdns-gerd) build/powerdns-gerd
+    - cp .ci/ci.cabal.project cabal.project.local
+    - cabal build powerdns-gerd
+    - cabal build powerdns-gerd:test:powerdns-gerd-test
+    - cp $(cabal -v0 list-bin powerdns-gerd:test:powerdns-gerd-test) build/test/powerdns-gerd-test
+    - cp $(cabal -v0 list-bin powerdns-gerd) build/powerdns-gerd
     - cp test/powerdns-gerd.test.conf build/test/powerdns-gerd.test.conf
 
 build:linux:static:
@@ -44,8 +45,9 @@ build:linux:static:
     - source /root/.ghcup/env
   script:
     - mkdir build
-    - cabal build --ghc-options='-optl-static -optl-pthread' --constraint='cryptonite +integer-simple -integer-gmp'
-    - cp $(cabal list-bin --enable-tests powerdns-gerd) build/powerdns-gerd
+    - cp .ci/static.cabal.project cabal.project.local
+    - cabal build powerdns-gerd:exe:powerdns-gerd
+    - cp $(cabal -v0 list-bin powerdns-gerd) build/powerdns-gerd
 
 testExampleConfig:
   stage: test

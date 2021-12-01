@@ -1,0 +1,5 @@
+packages: ../.
+constraints:
+  cryptonite -integer-gmp +integer-simple
+
+executable-static: true
