@@ -47,7 +47,8 @@ build:linux:static:
     - curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
     - source /root/.ghcup/env
   script:
-    - mkdir -p /root/cabal/store
+    - mkdir -p /root/cabal/
+    - mkdir -p .cabal-store
     - ln .cabal-store /root/cabal/store
     - mkdir build
     - cp .ci/static.cabal.project cabal.project.local
