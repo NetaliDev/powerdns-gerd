@@ -39,7 +39,7 @@ build:linux:static:
   variables:
     BOOTSTRAP_HASKELL_NONINTERACTIVE: "1"
   before_script:
-    - apk add libsodium-dev libsodium-static binutils-gold zlib-static zlib-dev curl
+    - apk add libsodium-dev libsodium-static binutils-gold zlib-static zlib-dev curl gcc gmp-dev libc-dev libffi-dev make musl-dev ncurses-dev perl tar xz
     - curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
   script:
     - mkdir build
