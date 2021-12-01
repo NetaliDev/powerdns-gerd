@@ -5,20 +5,40 @@ listenPort: 9000
 users:
   * name: "user"
     passHash: "$argon2id$v=19$m=8,t=1,p=1$cjV5UDFCSHRSaXJ0am9PZg$OIscttF7A8I40AK9Zxa3Sw"
+
+    -- Permissions to update records, filtered by a name and type pattern. This allows for modification
+    -- irrespective of what zone the domain is in.
+    -- https://doc.powerdns.com/authoritative/http-api/zone.html#patch--servers-server_id-zones-zone_id
+    domains:
+      * { name: "2.example.com.", types: [A, AAAA] }
+      * { name: "3.example.com.", types: [MX] }
+
     zones:
       * zone: "example.com."
+
+        -- Permissions to update records under this zone, filtered by a name and type pattern.
+        -- https://doc.powerdns.com/authoritative/http-api/zone.html#patch--servers-server_id-zones-zone_id
         domains:
           * { name: "1.example.com.", types: [A, AAAA] }
           * { name: "foo.example.com.", types: any }
-  * name: "lego-netbox"
-    passHash: "$argon2id$v=19$m=8,t=1,p=1$cjV5UDFCSHRSaXJ0am9PZg$OIscttF7A8I40AK9Zxa3Sw"
-    zones:
-      * zone: "service.wobcom.de."
-        domains:
-          * { name: "*.netbox.service.wobcom.de.", types: [TXT] }
 
-  * name: "lego-grafana"
-    passHash: "$argon2id$v=19$m=8,t=1,p=1$cjV5UDFCSHRSaXJ0am9PZg$OIscttF7A8I40AK9Zxa3Sw"
-    domains:
-	* { name: "*.grafana.service.wobcom.de.", types: [TXT] }
-        
+        -- https://doc.powerdns.com/authoritative/http-api/zone.html#get--servers-server_id-zones-zone_id
+        view: filtered
+
+        -- https://doc.powerdns.com/authoritative/http-api/zone.html#delete--servers-server_id-zones-zone_id
+        delete: permit
+
+        -- https://doc.powerdns.com/authoritative/http-api/zone.html#put--servers-server_id-zones-zone_id
+        update: permit
+
+        -- https://doc.powerdns.com/authoritative/http-api/zone.html#put--servers-server_id-zones-zone_id-axfr-retrieve
+        triggerAxfr: permit
+
+        -- https://doc.powerdns.com/authoritative/http-api/zone.html#put--servers-server_id-zones-zone_id-notify
+        notifySlaves: permit
+
+        -- https://doc.powerdns.com/authoritative/http-api/zone.html#get--servers-server_id-zones-zone_id-export
+        getAxfr: permit
+
+        -- https://doc.powerdns.com/authoritative/http-api/zone.html#put--servers-server_id-zones-zone_id-rectify
+        rectifyZone: permit
