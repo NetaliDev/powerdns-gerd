@@ -62,7 +62,7 @@ testExampleConfig:
   dependencies:
     - build:linux
   script:
-    - ./build/powerdns-gerd config-test -c ./powerdns-gerd.conf.example
+    - ./build/powerdns-gerd config-validate -c ./powerdns-gerd.conf.example
 
 test:
   image: ubuntu:focal
