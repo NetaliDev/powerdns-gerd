@@ -25,6 +25,27 @@ build:linux:
     - cp $(cabal -v0 list-bin --enable-tests powerdns-gerd) build/powerdns-gerd
     - cp test/powerdns-gerd.test.conf build/test/powerdns-gerd.test.conf
 
+build:linux:static:
+  cache:
+    paths:
+      - dist-newstyle/
+  stage: build
+  tags:
+    - docker
+  artifacts:
+    paths:
+      - build/powerdns-gerd
+  image: alpine:latest
+  variables:
+    BOOTSTRAP_HASKELL_NONINTERACTIVE: "1"
+  before_script:
+    - apk add libsodium-dev libsodium-static binutils-gold zlib-static zlib-dev curl
+    - curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+  script:
+    - mkdir build
+    - cabal build --ghc-options='-optl-static -optl-pthread' --constraint='cryptonite +integer-simple -integer-gmp'
+    - cp $(cabal list-bin --enable-tests powerdns-gerd) build/powerdns-gerd
+
 test:
   image: ubuntu:focal
   variables:
