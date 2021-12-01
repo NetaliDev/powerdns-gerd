@@ -49,7 +49,7 @@ build:linux:static:
   script:
     - mkdir -p /root/cabal/
     - mkdir -p .cabal-store
-    - ln .cabal-store /root/cabal/store
+    - ln .cabal-store -s /root/cabal/store
     - mkdir build
     - cp .ci/static.cabal.project cabal.project.local
     - cabal build powerdns-gerd:exe:powerdns-gerd
