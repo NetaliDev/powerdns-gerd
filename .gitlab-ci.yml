@@ -28,8 +28,10 @@ build:linux:
 
 build:linux:static:
   cache:
+    key: powerdns-gerd-static
     paths:
       - dist-newstyle/
+      - /root/.cabal
   stage: build
   tags:
     - docker
