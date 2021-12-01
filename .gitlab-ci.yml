@@ -46,6 +46,13 @@ build:linux:static:
     - cabal build --ghc-options='-optl-static -optl-pthread' --constraint='cryptonite +integer-simple -integer-gmp'
     - cp $(cabal list-bin --enable-tests powerdns-gerd) build/powerdns-gerd
 
+testExampleConfig:
+  stage: test
+  dependencies:
+    - build:linux
+  script:
+    - ./build/powerdns-gerd config-test -c ./powerdns-gerd.conf.example
+
 test:
   image: ubuntu:focal
   variables:
