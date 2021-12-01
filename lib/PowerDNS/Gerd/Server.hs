@@ -11,8 +11,9 @@ where
 
 import           Data.Char (ord)
 
-import           Control.Monad.Logger (LoggingT, filterLogger, logError,
-                                       runStdoutLoggingT)
+import           Control.Monad.Logger (Loc, LogLevel, LogSource, LogStr,
+                                       LoggingT, askLoggerIO, logError,
+                                       runLoggingT)
 import           Control.Monad.Trans.Except (ExceptT(ExceptT))
 import           Control.Monad.Trans.Reader (runReaderT)
 import qualified Data.ByteString as BS
@@ -32,17 +33,14 @@ import           Servant.Server (Application, Handler(..), ServerError(..),
                                  err400, err401, err500)
 import           Servant.Server.Experimental.Auth (AuthHandler, mkAuthHandler)
 import           Servant.Server.Generic (genericServeTWithContext)
-import           UnliftIO (MonadIO, TVar, liftIO, readTVarIO)
+import           UnliftIO (TVar, liftIO, readTVarIO)
 import qualified UnliftIO.Exception as E
 
 import           PowerDNS.Gerd.Config (Config(..))
 import           PowerDNS.Gerd.Server.Endpoints
 import           PowerDNS.Gerd.Types
-import           PowerDNS.Gerd.Utils
 
-
-runLog :: MonadIO m => Int -> LoggingT m a -> m a
-runLog verbosity = runStdoutLoggingT . filterLogger (logFilter verbosity)
+type Logger = Loc -> LogSource -> LogLevel -> LogStr -> IO ()
 
 -- | A natural transformation turning a GerdM into a plain Servant handler.
 -- See https://docs.servant.dev/en/stable/cookbook/using-custom-monad/UsingCustomMonad.html
@@ -50,8 +48,8 @@ runLog verbosity = runStdoutLoggingT . filterLogger (logFilter verbosity)
 -- ServerError as an exception, and this handler catches them back. We also
 -- catch outstanding exceptions and produce a 500 error here instead. This allows
 -- middlewares to log these requests and responses as well.
-toHandler :: Env -> GerdM a -> Handler a
-toHandler env = Handler . ExceptT . flip runReaderT env . runLog (envVerbosity env) . runGerdM . catchRemEx
+toHandler :: Logger -> Env -> GerdM a -> Handler a
+toHandler logger env = Handler . ExceptT . flip runReaderT env . flip runLoggingT logger . runGerdM . catchRemEx
   where
     catchRemEx :: forall a. GerdM a -> GerdM (Either ServerError a)
     catchRemEx handler = (Right <$> handler) `E.catches` exceptions
@@ -75,15 +73,17 @@ toHandler env = Handler . ExceptT . flip runReaderT env . runLog (envVerbosity e
     prpgSrvErr :: ServerError -> GerdM (Either ServerError a)
     prpgSrvErr = pure . Left
 
-mkApp :: Int -> TVar Config -> IO Application
-mkApp verbosity cfg = do
-  cfg' <- readTVarIO cfg
-  url <- parseBaseUrl (T.unpack (cfgUpstreamApiBaseUrl cfg'))
-  mgr <- newManager tlsManagerSettings
-  let clientEnv =  PDNS.applyXApiKey (cfgUpstreamApiKey cfg') (mkClientEnv mgr url)
-  let env = Env clientEnv verbosity
+mkApp :: TVar Config -> LoggingT IO Application
+mkApp cfg = do
+  logger <- askLoggerIO
+  cfg' <- liftIO $ readTVarIO cfg
+  url <- liftIO $ parseBaseUrl (T.unpack (cfgUpstreamApiBaseUrl cfg'))
+  mgr <- liftIO $ newManager tlsManagerSettings
+  let cenv =  PDNS.applyXApiKey (cfgUpstreamApiKey cfg') (mkClientEnv mgr url)
 
-  pure (genericServeTWithContext (toHandler env) server (ourContext cfg))
+  pure (genericServeTWithContext (toHandler logger (Env cenv))
+                                 server
+                                 (ourContext cfg))
 
 -- | A custom authentication handler as per https://docs.servant.dev/en/stable/tutorial/Authentication.html#generalized-authentication
 authHandler :: TVar Config -> AuthHandler Request User

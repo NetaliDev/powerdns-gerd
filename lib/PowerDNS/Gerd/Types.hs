@@ -17,7 +17,6 @@ import UnliftIO (MonadUnliftIO)
 
 data Env = Env
   { envProxyEnv :: ClientEnv
-  , envVerbosity :: Int
   }
 
 type AsGerd = AsServerT GerdM

@@ -29,6 +29,7 @@ import           PowerDNS.API.Zones
 import           PowerDNS.Gerd.Permission
 import           PowerDNS.Gerd.User
 import           PowerDNS.Gerd.Utils
+import           UnliftIO (MonadIO, liftIO)
 
 data ConfigNonValidated = ConfigNonValidated
   { cfgnvUpstreamApiBaseUrl :: T.Text
@@ -176,8 +177,8 @@ userSpec = sectionsSpec "user" $ do
 
   pure UserNonValidated{..}
 
-loadConfig :: FilePath -> IO Config
-loadConfig path = do
+loadConfig :: MonadIO m => FilePath -> m Config
+loadConfig path = liftIO $ do
   cfg <- loadValueFromFile configSpec path
   validate cfg
 

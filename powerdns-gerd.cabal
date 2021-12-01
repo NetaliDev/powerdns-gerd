@@ -33,6 +33,8 @@ test-suite powerdns-gerd-test
                     , http-types
                     , powerdns-gerd-lib
                     , text
+                    , unliftio
+                    , monad-logger
                     , wai-extra
                     , call-stack
 

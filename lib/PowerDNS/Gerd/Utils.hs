@@ -17,11 +17,12 @@ module PowerDNS.Gerd.Utils
   , pprDomainPattern
   , quoted
   , ourVersion
-  )
+  , runLog )
 where
 
 import           Control.Applicative (many, optional)
-import           Control.Monad.Logger (LogLevel(..), LogSource)
+import           Control.Monad.Logger (LogLevel(..), LogSource, LoggingT,
+                                       filterLogger, runStdoutLoggingT)
 import           Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 import           Data.Foldable (asum)
 import           Data.Version (showVersion)
@@ -30,6 +31,7 @@ import qualified Data.Attoparsec.Text as ATT
 import qualified Data.Text as T
 import           Development.GitRev
 
+import           Control.Monad.IO.Class (MonadIO)
 import           Paths_powerdns_gerd (version)
 import           PowerDNS.Gerd.Permission
 
@@ -157,3 +159,6 @@ ourVersion = unlines [ "version: " <> showVersion version
   where
         dirty | $(gitDirty) = " (uncommitted files present)"
               | otherwise   = ""
+
+runLog :: MonadIO m => Int -> LoggingT m a -> m a
+runLog verbosity = runStdoutLoggingT . filterLogger (logFilter verbosity)

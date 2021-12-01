@@ -23,7 +23,10 @@ import           Test.HUnit.Lang
 import           Test.Tasty
 import           Test.Tasty.HUnit (testCase)
 
+import           Control.Monad.Logger (defaultOutput, runLoggingT)
 import           PowerDNS.Client
+import           UnliftIO (IOMode(AppendMode), bracket, hClose, openFile)
+import           UnliftIO.STM (newTVarIO)
 
 data TestEnv = TestEnv
   { teGerdEnv :: ClientEnv
@@ -268,20 +271,33 @@ main = do
 
   cfg <- loadConfig "./test/powerdns-gerd.test.conf"
 
+
+
   let (cfg', upstream) = if isCI
         then ( cfg { cfgUpstreamApiBaseUrl = "http://pdns:8081" }
              , BaseUrl Http "pdns" 8081 "" )
         else ( cfg
              , BaseUrl Http "127.0.0.1" 8081 "" )
 
-  testWithApplication (mkApp 0 cfg') $ \port -> do
-    mgr <- newManager defaultManagerSettings
-    let gerdUrl = BaseUrl Http "127.0.0.1" port ""
-        gerdEnv = mkClientEnv mgr gerdUrl
-        upstreamUrl = upstream
-        upstreamEnv = applyXApiKey "secret" (mkClientEnv mgr upstreamUrl)
-        testEnv = TestEnv gerdEnv upstreamEnv
+  tvCfg <- newTVarIO cfg'
 
-    unsafeCleanZones testEnv
-    defaultMain (tests testEnv)
+  bracket (openFile "./test/gerd.server.log" AppendMode)
+          (hClose)
+          $ \h -> do
+    hSetBuffering h LineBuffering
+    let runLog m = runLoggingT m (defaultOutput h)
+
+
+    app <- runLog (mkApp tvCfg)
+
+    testWithApplication (pure app) $ \port -> do
+        mgr <- newManager defaultManagerSettings
+        let gerdUrl = BaseUrl Http "127.0.0.1" port ""
+            gerdEnv = mkClientEnv mgr gerdUrl
+            upstreamUrl = upstream
+            upstreamEnv = applyXApiKey "secret" (mkClientEnv mgr upstreamUrl)
+            testEnv = TestEnv gerdEnv upstreamEnv
+
+        unsafeCleanZones testEnv
+        defaultMain (tests testEnv)
 
