@@ -1,3 +1,5 @@
 packages: .
 jobs: 4
 tests: true
+split-sections: true
+executable-stripping: true

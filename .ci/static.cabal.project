@@ -2,4 +2,6 @@ packages: .
 constraints:
   cryptonite -integer-gmp +integer-simple
 
+split-sections: true
+executable-stripping: true
 executable-static: true
