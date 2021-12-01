@@ -53,6 +53,8 @@ build:linux:static:
 
 testExampleConfig:
   stage: test
+  tags:
+    - haskell
   dependencies:
     - build:linux
   script:
