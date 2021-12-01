@@ -5,7 +5,7 @@ module PowerDNS.Gerd.CmdServer
   )
 where
 
-import           Control.Monad.Logger (LoggingT, logInfoN)
+import           Control.Monad.Logger (logInfoN)
 import           Network.Wai.Handler.Warp (defaultSettings, runSettings,
                                            setBeforeMainLoop,
                                            setGracefulShutdownTimeout, setHost,
@@ -13,6 +13,7 @@ import           Network.Wai.Handler.Warp (defaultSettings, runSettings,
 import           PowerDNS.Gerd.Config
 import           PowerDNS.Gerd.Options
 import           PowerDNS.Gerd.Server (mkApp)
+import           PowerDNS.Gerd.Types (IOL)
 import           PowerDNS.Gerd.Utils (runLog)
 import qualified System.Posix.Signals as Posix
 import           UnliftIO (UnliftIO(..), askUnliftIO, liftIO)
@@ -22,7 +23,7 @@ import           UnliftIO.STM (TVar, atomically, newTVarIO, writeTVar)
 runServer :: ServerOpts -> IO ()
 runServer opts = runLog (optVerbosity opts) (runServerLogged opts)
 
-runServerLogged :: ServerOpts -> LoggingT IO ()
+runServerLogged :: ServerOpts -> IOL ()
 runServerLogged opts = do
     UnliftIO io <- askUnliftIO
     cfg <- loadConfig (optConfig opts)
@@ -47,7 +48,7 @@ runServerLogged opts = do
     welcome = logInfoN "PowerDNS-Gerd started."
     goodbye = logInfoN "Graceful shutdown requested, stopping PowerDNS-Gerd..."
 
-    reloadConfig :: TVar Config -> LoggingT IO ()
+    reloadConfig :: TVar Config -> IOL ()
     reloadConfig tv = do
       logInfoN "Reloading config..."
       atomically . writeTVar tv =<< loadConfig (optConfig opts)

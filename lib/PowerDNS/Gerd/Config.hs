@@ -70,7 +70,7 @@ zoneMapItemSpec = sectionsSpec "zone" $ do
 
   zpDomainPerms <- optSectionDefault' [] "domains"
                                                  (listSpec absRecordPermSpec)
-                                                 "List of records permissions"
+                                                 "List of editable domains"
   zpViewZone <- optSection' "view" viewPermissionSpec "Permission to view this zone, filtered or unfiltered. When unfiltered, this user can see all records of a zone in the GET endpoint. When filtered, the result will be filtered to only include RRSets the user can also modify. Forbidden by default."
   zpDeleteZone <- optSectionDefault' Forbidden "delete" authorizationSpec "Permission to delete this zone. Forbidden by default."
   zpUpdateZone <- optSectionDefault' Forbidden "update" authorizationSpec "Permission to update this zone. Forbidden by default."

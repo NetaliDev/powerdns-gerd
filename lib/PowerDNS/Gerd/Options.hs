@@ -51,7 +51,7 @@ cmd = subparser $ mconcat
   ]
 
 cmdConfigValidate :: Parser Command
-cmdConfigValidate = CmdConfigValidate <$> parseConfigFile
+cmdConfigValidate = CmdConfigValidate <$> (parseConfigFile <**> helper)
 
 cmdDigest :: Parser Command
 cmdDigest = CmdDigest <$> (go <**> helper)

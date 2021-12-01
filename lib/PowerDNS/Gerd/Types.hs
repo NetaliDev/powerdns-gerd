@@ -3,6 +3,7 @@ module PowerDNS.Gerd.Types
   ( GerdM(..)
   , Env(..)
   , AsGerd
+  , IOL
   )
 where
 
@@ -14,6 +15,8 @@ import Control.Monad.Trans.Reader (ReaderT)
 import Servant.Client (ClientEnv)
 import Servant.Server.Generic (AsServerT)
 import UnliftIO (MonadUnliftIO)
+
+type IOL = LoggingT IO
 
 data Env = Env
   { envProxyEnv :: ClientEnv

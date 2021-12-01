@@ -281,6 +281,9 @@ main = do
 
   tvCfg <- newTVarIO cfg'
 
+  -- We cannot use runFileLoggingT because that would close the file handle
+  -- right after mkApp again. Instead we do the same but with bracket covering
+  -- running the testsuite as well.
   bracket (openFile "./test/gerd.server.log" AppendMode)
           (hClose)
           $ \h -> do
