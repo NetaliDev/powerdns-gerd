@@ -8,17 +8,21 @@ module PowerDNS.Gerd.Utils
   , const3
   , const4
   , const5
+  , hush
   , parseAbsDomain
   , parseAbsDomainLabels
   , parseDomainPattern
   , logFilter
   , pprElabDomainPerm
+  , pprDomainPattern
+  , quoted
   , ourVersion
-  )
+  , runLog )
 where
 
 import           Control.Applicative (many, optional)
-import           Control.Monad.Logger (LogLevel(..), LogSource)
+import           Control.Monad.Logger (LogLevel(..), LogSource, LoggingT,
+                                       filterLogger, runStdoutLoggingT)
 import           Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 import           Data.Foldable (asum)
 import           Data.Version (showVersion)
@@ -27,6 +31,7 @@ import qualified Data.Attoparsec.Text as ATT
 import qualified Data.Text as T
 import           Development.GitRev
 
+import           Control.Monad.IO.Class (MonadIO)
 import           Paths_powerdns_gerd (version)
 import           PowerDNS.Gerd.Permission
 
@@ -47,6 +52,9 @@ const4 a _ _ _ _ = a
 
 const5 :: a -> b -> c -> d -> e -> f -> a
 const5 a _ _ _ _ _ = a
+
+hush :: Either a b -> Maybe b
+hush = either (const Nothing) Just
 
 parseAbsDomain :: T.Text -> Either String T.Text
 parseAbsDomain = ATT.parseOnly (absDomainP <* ATT.endOfInput)
@@ -151,3 +159,6 @@ ourVersion = unlines [ "version: " <> showVersion version
   where
         dirty | $(gitDirty) = " (uncommitted files present)"
               | otherwise   = ""
+
+runLog :: MonadIO m => Int -> LoggingT m a -> m a
+runLog verbosity = runStdoutLoggingT . filterLogger (logFilter verbosity)

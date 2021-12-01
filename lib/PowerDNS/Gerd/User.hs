@@ -1,25 +1,24 @@
 module PowerDNS.Gerd.User
   ( User(..)
+  , Username(..)
+  , UserNonValidated(..)
   , authenticate
   )
 where
 
 
 import qualified Data.ByteString.Char8 as B8
-import           Data.Foldable (find)
 import qualified Data.Text as T
 import           Libsodium
 
+import qualified Data.Map as M
 import           PowerDNS.Gerd.User.Types
 
-authenticate :: [User] -> T.Text -> B8.ByteString -> IO (Maybe User)
+authenticate :: M.Map Username User -> T.Text -> B8.ByteString -> IO (Maybe User)
 authenticate db name pass = maybe (pure Nothing)
                                   verify
-                                  (find matchingName db)
+                                  (M.lookup (Username name) db)
   where
-    matchingName :: User -> Bool
-    matchingName ac = _uName ac == name
-
     verify :: User -> IO (Maybe User)
     verify ac = do
       valid <- verifyArgon2id pass (_uPassHash ac)

@@ -9,11 +9,9 @@ module PowerDNS.Gerd.Config
   )
 where
 
-import           Control.Exception (SomeException, displayException)
+import           Control.Arrow ((&&&))
 import           Data.Maybe (fromMaybe)
 import           Data.String (fromString)
-import           System.Exit (exitFailure)
-import           System.IO (hPutStrLn, stderr)
 
 import           Config.Schema
 import qualified Data.Text as T
@@ -21,22 +19,34 @@ import qualified Data.Text.Encoding as T
 import           Data.Word (Word16)
 import           Network.Wai.Handler.Warp (HostPreference)
 import qualified Text.PrettyPrint as Pretty
-import           UnliftIO.Exception (catch)
 
+import           Control.Monad (unless)
 import           Data.Bifunctor (first)
+import           Data.Foldable (for_)
 import qualified Data.Map as M
+import qualified Data.Set as S
 import           PowerDNS.API.Zones
 import           PowerDNS.Gerd.Permission
 import           PowerDNS.Gerd.User
 import           PowerDNS.Gerd.Utils
+import           UnliftIO (MonadIO, liftIO)
+
+data ConfigNonValidated = ConfigNonValidated
+  { cfgnvUpstreamApiBaseUrl :: T.Text
+  , cfgnvUpstreamApiKey :: T.Text
+  , cfgnvListenAddress :: HostPreference
+  , cfgnvListenPort :: Word16
+  , cfgnvUsers :: [UserNonValidated]
+  }
 
 data Config = Config
   { cfgUpstreamApiBaseUrl :: T.Text
   , cfgUpstreamApiKey :: T.Text
   , cfgListenAddress :: HostPreference
   , cfgListenPort :: Word16
-  , cfgUsers :: [User]
+  , cfgUsers :: M.Map Username User
   }
+
 
 optSectionDefault' :: a -> T.Text -> ValueSpec a -> T.Text -> SectionsSpec a
 optSectionDefault' def sect spec descr = fromMaybe def <$> optSection' sect spec descr
@@ -46,9 +56,6 @@ absRecordPermSpec = sectionsSpec "abs-record-spec" $ do
   n <- reqSection' "name" domainPatSpec "The record name(s) that can be managed. Must be absolute with a trailing dot."
   t <- reqSection' "types" recordTypeSpec "The record types that can be managed."
   pure (n, t)
-
-zoneMapSpec :: ValueSpec (M.Map ZoneId ZonePermissions)
-zoneMapSpec = M.fromList <$> listSpec zoneMapItemSpec
 
 viewPermissionSpec :: ValueSpec ViewPermission
 viewPermissionSpec = Filtered <$ atomSpec "filtered"
@@ -79,8 +86,7 @@ recordTypeSpec = MayModifyAnyRecordType <$ atomSpec "any"
              <!> MayModifyRecordType <$> listSpec recordAtomSpec
 
 domainPatSpec :: ValueSpec DomainPattern
-domainPatSpec = DomainPattern [DomGlobStar] <$ atomSpec "any"
-            <!> customSpec "Absolute domain (with trailing dot). A leading wildcard like \"*.foo\" or \"*\" is allowed"
+domainPatSpec = customSpec "Absolute domain (with trailing dot). A leading wildcard like \"*.foo\" or \"*\" is allowed"
                             textSpec
                             (first T.pack . parseDomainPattern)
 
@@ -144,40 +150,85 @@ recordAtomSpec =    A          <$ atomSpec "A"
 hostPrefSpec :: ValueSpec HostPreference
 hostPrefSpec = fromString . T.unpack <$> textSpec
 
-configSpec :: ValueSpec Config
+configSpec :: ValueSpec ConfigNonValidated
 configSpec = sectionsSpec "top-level" $ do
-  cfgUpstreamApiBaseUrl <- reqSection "upstreamApiBaseUrl" "The base URL of the upstream PowerDNS API."
-  cfgUpstreamApiKey <- reqSection "upstreamApiKey" "The upstream X-API-Key secret"
-  cfgListenAddress <- reqSection' "listenAddress" hostPrefSpec "The IP address the proxy will bind on"
-  cfgListenPort <- reqSection "listenPort" "The TCP port the proxy will bind on"
-  cfgUsers <- reqSection' "users" (listSpec userSpec) "Configured users"
-  pure Config{..}
+  cfgnvUpstreamApiBaseUrl <- reqSection "upstreamApiBaseUrl" "The base URL of the upstream PowerDNS API."
+  cfgnvUpstreamApiKey <- reqSection "upstreamApiKey" "The upstream X-API-Key secret"
+  cfgnvListenAddress <- reqSection' "listenAddress" hostPrefSpec "The IP address the proxy will bind on"
+  cfgnvListenPort <- reqSection "listenPort" "The TCP port the proxy will bind on"
+  cfgnvUsers <- reqSection' "users" (listSpec userSpec) "Configured users"
+  pure ConfigNonValidated{..}
 
-userSpec :: ValueSpec User
+userSpec :: ValueSpec UserNonValidated
 userSpec = sectionsSpec "user" $ do
-  _uName <- reqSection "name" "The name of the API user"
-  _uPassHash <- reqSection' "passHash"
+  _unvName <- Username <$> reqSection "name" "The name of the API user"
+  _unvPassHash <- reqSection' "passHash"
                             (T.encodeUtf8 <$> textSpec)
                             "Argon2id hash of the secret as a string in the original reference format, e.g.: $argon2id$v=19$m=65536,t=3,p=2$c29tZXNhbHQ$RdescudvJCsgt3ub+b+dWRWJTmaaJObG"
-  _uZonePerms <- optSectionDefault' mempty
-                                    "zones"
-                                    (zoneMapSpec)
-                                    "Zone-specific permissions"
-  _uRecordPerms <- optSectionDefault' []
-                                    "domains"
-                                    (listSpec absRecordPermSpec)
-                                    "Global domain permissions"
+  _unvZonePerms <- optSectionDefault' []
+                                     "zones"
+                                      (listSpec zoneMapItemSpec)
+                                     "Zone-specific permissions"
 
-  pure User{..}
+  _unvRecordPerms <- optSectionDefault' []
+                                       "domains"
+                                       (listSpec absRecordPermSpec)
+                                      "Global domain permissions"
 
-loadConfig :: FilePath -> IO Config
-loadConfig path = loadValueFromFile configSpec path `catch` onError
-  where
-    onError :: SomeException -> IO a
-    onError ex = do
-      hPutStrLn stderr "Error while parsing config"
-      hPutStrLn stderr (displayException ex)
-      exitFailure
+  pure UserNonValidated{..}
+
+loadConfig :: MonadIO m => FilePath -> m Config
+loadConfig path = liftIO $ do
+  cfg <- loadValueFromFile configSpec path
+  validate cfg
 
 configHelp :: String
 configHelp = Pretty.render (generateDocs configSpec)
+
+validate :: ConfigNonValidated -> IO Config
+validate cfg = do
+  validateUniqueUsers cfg
+  users <- traverse validateUser (cfgnvUsers cfg)
+
+  pure Config{ cfgUpstreamApiBaseUrl = cfgnvUpstreamApiBaseUrl cfg
+             , cfgUpstreamApiKey = cfgnvUpstreamApiKey cfg
+             , cfgListenAddress = cfgnvListenAddress cfg
+             , cfgListenPort = cfgnvListenPort cfg
+             , cfgUsers = M.fromList ((_uName &&& id) <$> users)
+             }
+
+validateUser :: UserNonValidated -> IO User
+validateUser unv = do
+  let zones = _unvZonePerms unv
+      dups = duplicates (fst <$> zones)
+  unless (null dups) $
+    fail ("Duplicate zones: " <> T.unpack (T.intercalate ", " (getZone <$> dups)))
+
+  for_ (_unvZonePerms unv) $ \(ZoneId zone, perms) -> do
+    for_ (zpDomainPerms perms) $ \(pat, _allow) -> do
+      let pat' = pprDomainPattern pat
+      unless (zone `T.isSuffixOf` pat') $
+        fail ("Pattern is out of zone " <> T.unpack (quoted zone) <> ": " <> T.unpack pat')
+
+  pure User{ _uName = _unvName unv
+           , _uPassHash = _unvPassHash unv
+           , _uZonePerms = M.fromList zones
+           , _uRecordPerms = _unvRecordPerms unv
+           }
+
+duplicates :: Ord a => [a] -> [a]
+duplicates = go mempty
+  where
+    go _seen []    = []
+    go seen (x:xs) | x `S.member` seen
+                   = x : go seen xs
+
+                   | otherwise
+                   = go (S.insert x seen) xs
+
+
+validateUniqueUsers :: ConfigNonValidated -> IO ()
+validateUniqueUsers cfg = do
+  let dups = duplicates (_unvName <$> cfgnvUsers cfg)
+  unless (null dups) $
+    fail ("Duplicate users: " <> T.unpack (T.intercalate ", " (getUsername <$> dups)))

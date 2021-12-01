@@ -17,16 +17,16 @@ With PowerDNS-Gerd you can assign permissions of particular domains or zones, fi
 With PowerDNS-Gerd you can simply specify a permission like:
 
 ```
-* { name "_acme-challenge.example.com.", types: [TXT] }
+* { name: "_acme-challenge.example.com.", types: [TXT] }
 ```
 
 which would grant a user access to that record only.
 
 You can also provide glob and globstar patterns like:
 ```
-* { name "*.zone1.example.com.", types: any }
-* { name "**.example.com.", types: [A, AAAA] }
-* { name "_acme-challenge.*.zone2.example.com.", types: [TXT] }
+* { name: "*.zone1.example.com.", types: any }
+* { name: "**.example.com.", types: [A, AAAA] }
+* { name: "_acme-challenge.*.zone2.example.com.", types: [TXT] }
 ```
 
 
