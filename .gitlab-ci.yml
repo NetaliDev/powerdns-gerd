@@ -41,6 +41,7 @@ build:linux:static:
   before_script:
     - apk add libsodium-dev libsodium-static binutils-gold zlib-static zlib-dev curl gcc gmp-dev libc-dev libffi-dev make musl-dev ncurses-dev perl tar xz
     - curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+    - source /root/.ghcup/env
   script:
     - mkdir build
     - cabal build --ghc-options='-optl-static -optl-pthread' --constraint='cryptonite +integer-simple -integer-gmp'
