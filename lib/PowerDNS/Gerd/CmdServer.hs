@@ -20,7 +20,7 @@ runServer opts = do
     cfg <- loadConfig (optConfig opts)
 
     tv <- newTVarIO cfg
-    Posix.installHandler Posix.sigUSR1 (Posix.Catch $ reloadConfig tv) Nothing
+    Posix.installHandler Posix.sigHUP (Posix.Catch $ reloadConfig tv) Nothing
 
     runSettings (settings cfg) =<< mkApp (optVerbosity opts) tv
   where
