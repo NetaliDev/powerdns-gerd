@@ -1,4 +1,4 @@
-packages: ../.
+packages: .
 constraints:
   cryptonite -integer-gmp +integer-simple
 
