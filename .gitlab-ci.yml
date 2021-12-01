@@ -7,6 +7,7 @@ variables:
 
 build:linux:
   cache:
+    key: powerdns-gerd-ci
     paths:
       - dist-newstyle/
   stage: build
