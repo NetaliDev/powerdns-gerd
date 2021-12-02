@@ -109,7 +109,7 @@ isAsciiLetter :: Char -> Bool
 isAsciiLetter c = isAsciiLower c || isAsciiUpper c
 
 isLetDig :: Char -> Bool
-isLetDig c = isAsciiLetter c || isDigit c
+isLetDig c = isAsciiLetter c || isDigit c || (c == '_')
 
 isLetDigHyp :: Char -> Bool
 isLetDigHyp c = isLetDig c || c == '-'
