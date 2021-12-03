@@ -57,21 +57,21 @@ absRecordPermSpec = sectionsSpec "abs-record-spec" $ do
   t <- reqSection' "types" recordTypeSpec "The record types that can be managed."
   pure (n, t)
 
-viewPermissionSpec :: ValueSpec ViewPermission
-viewPermissionSpec = Filtered <$ atomSpec "filtered"
-                 <!> Unfiltered <$ atomSpec "unsafeUnfiltered"
+filteredPermissionSpec :: ValueSpec FilteredPermission
+filteredPermissionSpec = Filtered <$ atomSpec "filtered"
+                 <!> Unfiltered <$ atomSpec "unfiltered"
 
-authorizationSpec :: ValueSpec Authorization
-authorizationSpec = Authorized <$ atomSpec "permit"
+authorizationSpec :: ValueSpec (Authorization ())
+authorizationSpec = Authorized () <$ atomSpec "permit"
 
 zoneMapItemSpec :: ValueSpec (ZoneId, ZonePermissions)
 zoneMapItemSpec = sectionsSpec "zone" $ do
   zoneName <- reqSection' "zone" zoneIdSpec "The name of the zone"
 
   zpDomainPerms <- optSectionDefault' [] "domains"
-                                                 (listSpec absRecordPermSpec)
-                                                 "List of editable domains"
-  zpViewZone <- optSection' "view" viewPermissionSpec "Permission to view this zone, filtered or unfiltered. When unfiltered, this user can see all records of a zone in the GET endpoint. When filtered, the result will be filtered to only include RRSets the user can also modify. Forbidden by default."
+                                         (listSpec absRecordPermSpec)
+                                         "List of editable domains"
+  zpViewZone <- optSectionDefault' Forbidden "view" (Authorized <$> filteredPermissionSpec) "Permission to view this zone, filtered or unfiltered. When unfiltered, this user can see all records of a zone in the GET endpoint. When filtered, the result will be filtered to only include RRSets the user can also modify. Forbidden by default."
   zpDeleteZone <- optSectionDefault' Forbidden "delete" authorizationSpec "Permission to delete this zone. Forbidden by default."
   zpUpdateZone <- optSectionDefault' Forbidden "update" authorizationSpec "Permission to update this zone. Forbidden by default."
   zpTriggerAxfr <- optSectionDefault' Forbidden "triggerAxfr" authorizationSpec "Permission to trigger a zone transfer on a slave. Forbidden by default."
@@ -159,21 +159,28 @@ configSpec = sectionsSpec "top-level" $ do
   cfgnvUsers <- reqSection' "users" (listSpec userSpec) "Configured users"
   pure ConfigNonValidated{..}
 
+permSet :: SectionsSpec (PermSet Lookup)
+permSet = do
+  psZonePerms <- Lookup <$> optSectionDefault' []
+                                              "zones"
+                                              (listSpec zoneMapItemSpec)
+                                              "Zone-specific permissions"
+
+  psUnrestrictedDomainPerms <- optSectionDefault' []
+                                       "domains"
+                                       (listSpec absRecordPermSpec)
+                                      "Global domain permissions"
+  psCreateZone <- optSectionDefault' Forbidden "createZone" authorizationSpec "Permission to create zones. Forbidden by default."
+  psListZones <- optSectionDefault' Forbidden "listZones" (Authorized <$> filteredPermissionSpec) "Permission to list zones, filtered or unfiltered. When unfiltered, this user can see all zones including all RRSets. When filtered, the result will be filtered to only include zones the user has any domain permissions on, and then each zone is filtered to include only those RRSets."
+  pure PermSet{..}
+
 userSpec :: ValueSpec UserNonValidated
 userSpec = sectionsSpec "user" $ do
   _unvName <- Username <$> reqSection "name" "The name of the API user"
   _unvPassHash <- reqSection' "passHash"
                             (T.encodeUtf8 <$> textSpec)
                             "Argon2id hash of the secret as a string in the original reference format, e.g.: $argon2id$v=19$m=65536,t=3,p=2$c29tZXNhbHQ$RdescudvJCsgt3ub+b+dWRWJTmaaJObG"
-  _unvZonePerms <- optSectionDefault' []
-                                     "zones"
-                                      (listSpec zoneMapItemSpec)
-                                     "Zone-specific permissions"
-
-  _unvRecordPerms <- optSectionDefault' []
-                                       "domains"
-                                       (listSpec absRecordPermSpec)
-                                      "Global domain permissions"
+  _unvPerms <- permSet
 
   pure UserNonValidated{..}
 
@@ -197,24 +204,29 @@ validate cfg = do
              , cfgUsers = M.fromList ((_uName &&& id) <$> users)
              }
 
-validateUser :: UserNonValidated -> IO User
-validateUser unv = do
-  let zones = _unvZonePerms unv
+validatePermSet :: PermSet Lookup -> IO (PermSet M.Map)
+validatePermSet ups = do
+  let zones = runLookup (psZonePerms ups)
       dups = duplicates (fst <$> zones)
+
   unless (null dups) $
     fail ("Duplicate zones: " <> T.unpack (T.intercalate ", " (getZone <$> dups)))
 
-  for_ (_unvZonePerms unv) $ \(ZoneId zone, perms) -> do
+  for_ zones $ \(ZoneId zone, perms) -> do
     for_ (zpDomainPerms perms) $ \(pat, _allow) -> do
-      let pat' = pprDomainPattern pat
-      unless (zone `T.isSuffixOf` pat') $
-        fail ("Pattern is out of zone " <> T.unpack (quoted zone) <> ": " <> T.unpack pat')
+        let pat' = pprDomainPattern pat
+        unless (zone `T.isSuffixOf` pat') $
+            fail ("Pattern is out of zone " <> T.unpack (quoted zone) <> ": " <> T.unpack pat')
 
+  pure ups{ psZonePerms = M.fromList zones }
+
+validateUser :: UserNonValidated -> IO User
+validateUser unv = do
+  perms <- validatePermSet (_unvPerms unv)
   pure User{ _uName = _unvName unv
            , _uPassHash = _unvPassHash unv
-           , _uZonePerms = M.fromList zones
-           , _uRecordPerms = _unvRecordPerms unv
-           }
+           , _uPerms = perms }
+
 
 duplicates :: Ord a => [a] -> [a]
 duplicates = go mempty

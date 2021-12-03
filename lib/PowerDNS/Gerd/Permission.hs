@@ -2,7 +2,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module PowerDNS.Gerd.Permission
   ( module PowerDNS.Gerd.Permission.Types
-  , zoneViewPerm
   , elaborateDomainPerms
   , filterDomainPerms
   , getZonePermission
@@ -11,7 +10,6 @@ where
 
 import qualified Data.Map as M
 
-import           Control.Monad (join)
 import qualified Data.Text as T
 import           PowerDNS.API (RecordType)
 import           PowerDNS.Gerd.Permission.Types
@@ -36,18 +34,15 @@ matchesAllowSpec :: RecordType -> AllowSpec -> Bool
 matchesAllowSpec _ MayModifyAnyRecordType    = True
 matchesAllowSpec rt (MayModifyRecordType xs) = rt `elem` xs
 
-getZonePermission :: (ZonePermissions -> Authorization) -> T.Text -> User -> Authorization
-getZonePermission f zone user = maybe Forbidden f (M.lookup (ZoneId zone) (_uZonePerms user))
-
-zoneViewPerm :: User -> ZoneId -> Maybe ViewPermission
-zoneViewPerm user zone = join (zpViewZone <$> M.lookup zone (_uZonePerms user))
+getZonePermission :: (ZonePermissions -> Authorization a) -> T.Text -> User -> Authorization a
+getZonePermission f zone user = maybe Forbidden f (M.lookup (ZoneId zone) (psZonePerms (_uPerms user)))
 
 elaborateDomainPerms :: User -> [ElabDomainPerm]
 elaborateDomainPerms user = permsWithoutZoneId <> permsWithZoneId
   where
     permsWithoutZoneId :: [ElabDomainPerm]
     permsWithoutZoneId = do
-      (pat, allowed) <- _uRecordPerms user
+      (pat, allowed) <- psUnrestrictedDomainPerms (_uPerms user)
       pure ElabDomainPerm{ epZone = Nothing
                                , epDomainPat = pat
                                , epAllowed = allowed
@@ -55,7 +50,7 @@ elaborateDomainPerms user = permsWithoutZoneId <> permsWithZoneId
 
     permsWithZoneId :: [ElabDomainPerm]
     permsWithZoneId = do
-      (zone, perms) <- M.toList (_uZonePerms user)
+      (zone, perms) <- M.toList (psZonePerms (_uPerms user))
       (pat, allowed) <- zpDomainPerms perms
       pure ElabDomainPerm{ epZone = Just zone
                                , epDomainPat = pat

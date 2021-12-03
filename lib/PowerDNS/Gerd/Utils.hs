@@ -140,7 +140,7 @@ pprAllowed (MayModifyRecordType xs) = "record types: " <> showT xs
 
 pprElabDomainPerm :: ElabDomainPerm -> T.Text
 pprElabDomainPerm (ElabDomainPerm zone pat allowed)
-    = "pattern " <> quoted (pprDomainPattern pat) <> zoneDescr <> "for " <> pprAllowed allowed
+    = "pattern " <> quoted (pprDomainPattern pat) <> zoneDescr <> " for " <> pprAllowed allowed
   where
     zoneDescr = maybe "" (\(ZoneId z) -> " inside zone " <> quoted z <> " ") zone
 

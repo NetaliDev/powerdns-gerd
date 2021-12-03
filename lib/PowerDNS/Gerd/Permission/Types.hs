@@ -1,7 +1,9 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE KindSignatures    #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DataKinds          #-}
+{-# LANGUAGE DeriveFunctor      #-}
+{-# LANGUAGE FlexibleInstances  #-}
+{-# LANGUAGE KindSignatures     #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE StandaloneDeriving #-}
 module PowerDNS.Gerd.Permission.Types
   ( ZoneId(..)
   , DomainKind(..)
@@ -10,8 +12,10 @@ module PowerDNS.Gerd.Permission.Types
   , AllowSpec(..)
   , PermissionList
   , ElabDomainPerm(..)
-  , ViewPermission(..)
+  , FilteredPermission(..)
   , ZonePermissions(..)
+  , PermSet(..)
+  , Lookup(..)
   , Authorization(..)
   , ElabZonePerm(..)
   , DomainLabelPattern(..)
@@ -20,6 +24,7 @@ module PowerDNS.Gerd.Permission.Types
   )
 where
 
+import qualified Data.Map as M
 import qualified Data.Text as T
 import           PowerDNS.API (RecordType)
 
@@ -55,28 +60,43 @@ data RecordTypeSpec
   | AnyOf [RecordType]
   deriving Show
 
-data ViewPermission = Filtered | Unfiltered
+data FilteredPermission = Filtered | Unfiltered
   deriving Show
 
+deriving instance Show (PermSet Lookup)
+deriving instance Show (PermSet M.Map)
+deriving instance (Show k, Show v) => Show (Lookup k v)
+
+newtype Lookup k v = Lookup { runLookup :: [(k, v)] }
+
+-- | Parameterized over a lookup type. Either this is `Lookup` or `Map`.
+-- See 'UnvalidatedPermSet' and 'ValidatedPermSet'.
+data PermSet (c :: * -> * -> *) = PermSet
+  { psZonePerms :: c ZoneId ZonePermissions
+  , psUnrestrictedDomainPerms :: PermissionList
+  , psCreateZone :: Authorization ()
+  , psListZones :: Authorization FilteredPermission
+  }
+
 data ZonePermissions = ZonePermissions
-  { zpDomainPerms :: PermissionList
-  , zpViewZone :: Maybe ViewPermission
-  , zpUpdateZone :: Authorization
-  , zpDeleteZone :: Authorization
-  , zpTriggerAxfr :: Authorization
-  , zpNotifySlaves :: Authorization
-  , zpGetZoneAxfr :: Authorization
-  , zpRectifyZone :: Authorization
+  { zpViewZone :: Authorization FilteredPermission
+  , zpDomainPerms :: PermissionList
+  , zpUpdateZone :: Authorization ()
+  , zpDeleteZone :: Authorization ()
+  , zpTriggerAxfr :: Authorization ()
+  , zpNotifySlaves :: Authorization ()
+  , zpGetZoneAxfr :: Authorization ()
+  , zpRectifyZone :: Authorization ()
   } deriving Show
 
 type PermissionList = [(DomainPattern, AllowSpec)]
 
-data Authorization = Forbidden | Authorized
-  deriving Show
+data Authorization a = Forbidden | Authorized a
+  deriving (Eq, Ord, Show, Functor)
 
 data ElabZonePerm = ElabZonePerm
   { ezZone :: ZoneId
-  , ezView :: Maybe ViewPermission
+  , ezView :: Authorization FilteredPermission
   }
 
 -- | A domain permission that might be constrained to a particular zone

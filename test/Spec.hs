@@ -191,6 +191,7 @@ domainMatrix =
   , ("zone.", "sub.rec3.user1.zone.", Just ("user1", ATXT))
   , ("zone.", "sub.rec4.user1.zone.", Just ("user1", Any))
 
+
   , ("zone.", "rec5.user1.zone.", Just ("user1", ATXT))
   , ("zone.", "rec6.user1.zone.", Just ("user1", Any))
   , ("zone.", "unowned-b.user1.zone.", Nothing)
