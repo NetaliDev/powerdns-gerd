@@ -13,7 +13,7 @@ module PowerDNS.Gerd.Permission.Types
   , PermissionList
   , ElabDomainPerm(..)
   , FilteredPermission(..)
-  , ZonePermissions(..)
+  , PerZonePerms(..)
   , PermSet(..)
   , Lookup(..)
   , Authorization(..)
@@ -21,6 +21,11 @@ module PowerDNS.Gerd.Permission.Types
   , DomainLabelPattern(..)
   , DomainPattern(..)
   , DomainLabels(..)
+  , ServerPerms(..)
+  , CryptokeyPerms(..)
+  , TSIGKeyPerms(..)
+  , MetadataPerms(..)
+  , ZonePerms(..)
   )
 where
 
@@ -65,6 +70,8 @@ data FilteredPermission = Filtered | Unfiltered
 
 deriving instance Show (PermSet Lookup)
 deriving instance Show (PermSet M.Map)
+deriving instance Show (ZonePerms Lookup)
+deriving instance Show (ZonePerms M.Map)
 deriving instance (Show k, Show v) => Show (Lookup k v)
 
 newtype Lookup k v = Lookup { runLookup :: [(k, v)] }
@@ -72,21 +79,59 @@ newtype Lookup k v = Lookup { runLookup :: [(k, v)] }
 -- | Parameterized over a lookup type. Either this is `Lookup` or `Map`.
 -- See 'UnvalidatedPermSet' and 'ValidatedPermSet'.
 data PermSet (c :: * -> * -> *) = PermSet
-  { psZonePerms :: c ZoneId ZonePermissions
-  , psUnrestrictedDomainPerms :: PermissionList
-  , psCreateZone :: Authorization ()
-  , psListZones :: Authorization FilteredPermission
+  { psVersionsPerms :: Authorization ()
+  , psServersPerms :: ServerPerms
+  , psZonePerms :: ZonePerms c
+  , psTSIGKeyPerms :: TSIGKeyPerms
   }
 
-data ZonePermissions = ZonePermissions
-  { zpViewZone :: Authorization FilteredPermission
-  , zpDomainPerms :: PermissionList
-  , zpUpdateZone :: Authorization ()
-  , zpDeleteZone :: Authorization ()
-  , zpTriggerAxfr :: Authorization ()
-  , zpNotifySlaves :: Authorization ()
-  , zpGetZoneAxfr :: Authorization ()
-  , zpRectifyZone :: Authorization ()
+-- | Permissions pertaining to the @/servers@ endpoints
+data ServerPerms = ServerPerms
+  { spListServers :: Authorization ()
+  , spGetServer :: Authorization ()
+  , spSearch :: Authorization ()
+  , spFlushCache :: Authorization ()
+  , spStatistics :: Authorization ()
+  } deriving Show
+
+-- | Permissions pertaining to the @/zones@ endpoints
+data ZonePerms (c :: * -> * -> *) = ZonePerms
+  { zpUndestrictedDomainPerms :: PermissionList
+  , zpPerZonePerms :: c ZoneId PerZonePerms
+  , zpCreateZone :: Authorization ()
+  , zpListZones :: Authorization FilteredPermission
+  }
+
+-- | Permissions pertaining to the @/zones/:zone_id@ endpoints
+data PerZonePerms = PerZonePerms
+  { pzpViewZone :: Authorization FilteredPermission
+  , pzpDomainPerms :: PermissionList
+  , pzpUpdateZone :: Authorization ()
+  , pzpDeleteZone :: Authorization ()
+  , pzpTriggerAxfr :: Authorization ()
+  , pzpNotifySlaves :: Authorization ()
+  , pzpGetZoneAxfr :: Authorization ()
+  , pzpRectifyZone :: Authorization ()
+
+  -- | Permissions pertaining to the @/zones/:zoneid/metadata@ endpoints
+  , pzpMetadataPerms :: MetadataPerms
+  -- | Permissions pertaining to the @/zones/:zoneid/cryptokeys@ endpoints
+  , pzpCryptokeysPerms :: CryptokeyPerms
+  } deriving Show
+
+-- | Permissions pertaining to the @/zones/:zoneid/cryptokeys@ endpoints
+data CryptokeyPerms = CryptokeyPerms
+  { cpAny :: Authorization () -- ^ Whether or not any cryptokey operation is allowed or not.
+  } deriving Show
+
+-- | Permissions pertaining to the @/zones/:zoneid/metadata@ endpoints
+data MetadataPerms = MetadataPerms
+  { mdAny :: Authorization () -- ^ Whether or not any cryptokey operation is allowed or not.
+  } deriving Show
+
+-- | Permissions pertaining to the @/cryptokeys/@ endpoints
+data TSIGKeyPerms = TSIGKeyPerms
+  { tspAny :: Authorization () -- ^ Whether or not any TSIGKey operation is allowed or not.
   } deriving Show
 
 type PermissionList = [(DomainPattern, AllowSpec)]

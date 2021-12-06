@@ -61,80 +61,117 @@ wither f t = catMaybes <$> traverse f t
 
 -- | Given a 'PermSet' selector, raise a forbidden error if the authorization is set to forbid, otherwise call
 -- the provided continuation with the authorization token.
-withPerm :: T.Text -> (PermSet M.Map -> Authorization a) -> User -> (a -> GerdM b) -> GerdM b
-withPerm title f user act = case f (_uPerms user) of
-  Forbidden      -> deny title
+withZonePerm :: T.Text -> (ZonePerms M.Map -> Authorization a) -> User -> (a -> GerdM b) -> GerdM b
+withZonePerm title f user act = case f (psZonePerms (_uPerms user)) of
+  Forbidden      -> do
+    logWarnN ("Deny " <> title)
+    forbidden
   Authorized tok -> do
-    logDebugN ("Authorize: " <> title)
     act tok
 
--- | Given a 'ZonePermission' selector, raise a forbidden error if the authorization is set to forbid, otherwise call
+-- | Given a 'PerZonePerms' selector, raise a forbidden error if the authorization is set to forbid, otherwise call
 -- the provided continuation with the authorization token.
-withZonePerm :: T.Text -> (ZonePermissions -> Authorization a) -> T.Text -> User -> (a -> GerdM b) -> GerdM b
-withZonePerm title f zone user act = case getZonePermission f zone user of
-  Forbidden      -> deny title
-  Authorized tok -> act tok
+withPerZonePerm :: T.Text -> (PerZonePerms -> Authorization a) -> T.Text -> User -> (a -> GerdM b) -> GerdM b
+withPerZonePerm title f zone user act = case getPerZonePerms f zone user of
+    Forbidden      -> do
+        logWarnN ("Deny " <> title <> " on [" <> zone <> "]")
+        forbidden
+    Authorized tok -> do
+        act tok
+
+-- | Filters a list of RRSet to only those we have any permissions on
+filterRRSets :: ZoneId -> [ElabDomainPerm] -> [PDNS.RRSet] -> GerdM [PDNS.RRSet]
+filterRRSets zone eperms = filterM (\rrset -> not . null <$> filterDomainPermsRRSet zone rrset eperms)
+
+-- | Find all elaborated domain permissions that match a given RRSet in a zone.
+filterDomainPermsRRSet :: ZoneId -> PDNS.RRSet -> [ElabDomainPerm] -> GerdM [ElabDomainPerm]
+filterDomainPermsRRSet zone rrset eperms = do
+  let nam = PDNS.rrset_name rrset
+  labels <- notePanic (hush (parseAbsDomainLabels nam))
+                      ("failed to parse rrset: " <> nam)
+
+
+  pure $ filterDomainPerms zone labels (PDNS.rrset_type rrset) eperms
+
+-- | Ensure the user has sufficient permissions for this RRset
+authorizeRecordUpdate :: [ElabDomainPerm] -> ZoneId -> PDNS.RRSet -> GerdM ()
+authorizeRecordUpdate eperms zone rrset = do
+    matching <- filterDomainPermsRRSet zone rrset eperms
+    when (null matching) $ do
+      logWarnN ("Deny record update for " <> domain)
+      forbidden
+
+    logDebugN ("permissions matching " <> domain <> ":\n" <> T.unlines
+               (prepend "- " . pprElabDomainPerm <$> matching))
+  where
+    domain = "<" <> PDNS.rrset_name rrset <> ">"
+
+prepend :: T.Text -> T.Text -> T.Text
+prepend = (<>)
+
+-- | Variant of 'withPerZonePerm' that throws away the authorization token.
+hasPerZonePerm :: T.Text -> (PerZonePerms -> Authorization ()) -> T.Text -> User -> GerdM ()
+hasPerZonePerm title f zone user = withPerZonePerm title f zone user (\_tok -> pure ())
 
 -- | Variant of 'withZonePerm' that throws away the authorization token.
-authorizeZone :: T.Text -> (ZonePermissions -> Authorization ()) -> T.Text -> User -> GerdM ()
-authorizeZone title f zone user = withZonePerm title f zone user (\_tok -> pure ())
-
--- | Variant of 'withPerm' that throws away the authorization token.
-authorize :: T.Text -> (PermSet M.Map -> Authorization ()) -> User -> GerdM ()
-authorize title f user = withPerm title f user (\_tok -> pure ())
+hasZonePerm :: T.Text -> (ZonePerms M.Map -> Authorization ()) -> User -> GerdM ()
+hasZonePerm title f user = withZonePerm title f user (\_tok -> pure ())
 
 guardedZones :: User -> PDNS.ZonesAPI AsGerd
 guardedZones acc = PDNS.ZonesAPI
     { PDNS.apiListZones     = \srv zone dnssec -> do
-        withPerm "zone list" psListZones acc $ \perm -> do
+        withZonePerm "zone list" zpListZones acc $ \perm -> do
           zs <- runProxy (PDNS.listZones srv zone dnssec)
           case perm of
             Filtered   -> wither (filterZoneMaybe eperms) zs
             Unfiltered -> pure zs
 
     , PDNS.apiCreateZone    = \srv rrset zone -> do
-        authorize "zone create" psCreateZone acc
+        hasZonePerm "zone create" zpCreateZone acc
         runProxy (PDNS.createZone srv rrset zone)
 
     , PDNS.apiGetZone       = \srv zone rrs -> do
-        withZonePerm "view zone" zpViewZone zone acc $ \perm -> do
+        withPerZonePerm "view zone" pzpViewZone zone acc $ \perm -> do
           z <- runProxy (PDNS.getZone srv zone rrs)
           case perm of
             Filtered   -> filterZone eperms z
             Unfiltered -> pure z
 
     , PDNS.apiDeleteZone    = \srv zone -> do
-        authorizeZone "zone delete" zpDeleteZone zone acc
+        hasPerZonePerm "zone delete" pzpDeleteZone zone acc
         runProxy (PDNS.deleteZone srv zone)
 
     , PDNS.apiUpdateRecords = \srv zone rrs -> do
-        -- Ensure we do not forward requests without RRSets to the upstream API.
-        when (null (PDNS.rrsets rrs)) $
-          deny "zone records update without rrsets"
+        when (null (PDNS.rrsets rrs)) $ do
+          logDebugN "zone record update: Record has no RRsets"
+
+          -- Ensure we do not forward requests without RRSets to the upstream API.
+          forbidden
+
 
         for_ (PDNS.rrsets rrs) $ \rrset -> do
-            ensureHasRecordPermissions eperms (ZoneId zone) rrset
+            authorizeRecordUpdate eperms (ZoneId zone) rrset
 
         runProxy (PDNS.updateRecords srv zone rrs)
 
     , PDNS.apiUpdateZone    = \srv zone zoneData -> do
-        authorizeZone "zone update" zpUpdateZone zone acc
+        hasPerZonePerm "zone update" pzpUpdateZone zone acc
         runProxy (PDNS.updateZone srv zone zoneData)
 
     , PDNS.apiTriggerAxfr   = \srv zone -> do
-        authorizeZone "axfr trigger" zpTriggerAxfr zone acc
+        hasPerZonePerm "axfr trigger" pzpTriggerAxfr zone acc
         runProxy (PDNS.triggerAxfr srv zone)
 
     , PDNS.apiNotifySlaves  = \srv zone -> do
-        authorizeZone "slave notification" zpNotifySlaves zone acc
+        hasPerZonePerm "slave notification" pzpNotifySlaves zone acc
         runProxy (PDNS.notifySlaves srv zone)
 
     , PDNS.apiGetZoneAxfr   = \srv zone -> do
-        authorizeZone "axfr view" zpGetZoneAxfr zone acc
+        hasPerZonePerm "axfr view" pzpGetZoneAxfr zone acc
         runProxy (PDNS.getZoneAxfr srv zone)
 
     , PDNS.apiRectifyZone   = \srv zone -> do
-        authorizeZone "zone rectify" zpRectifyZone zone acc
+        hasPerZonePerm "zone rectify" pzpRectifyZone zone acc
         runProxy (PDNS.rectifyZone srv zone)
     }
   where
@@ -182,34 +219,6 @@ runProxy act = do
     responseFToServerErr :: ResponseF BSL.ByteString -> ServerError
     responseFToServerErr (Response (Status code message) headers _version body)
       = ServerError code (BS8.unpack message) body (toList headers)
-
-deny :: T.Text -> GerdM a
-deny title = do
-  logWarnN ("Deny: " <> title)
-  forbidden
-
--- | Filters a list of RRSet to only those we have any permissions on
-filterRRSets :: ZoneId -> [ElabDomainPerm] -> [PDNS.RRSet] -> GerdM [PDNS.RRSet]
-filterRRSets zone eperms = filterM (\rrset -> not . null <$> filterDomainPermsRRSet zone rrset eperms)
-
--- | Find all elaborated domain permissions that match a given RRSet in a zone.
-filterDomainPermsRRSet :: ZoneId -> PDNS.RRSet -> [ElabDomainPerm] -> GerdM [ElabDomainPerm]
-filterDomainPermsRRSet zone rrset eperms = do
-  let nam = PDNS.rrset_name rrset
-  labels <- notePanic (hush (parseAbsDomainLabels nam))
-                      ("failed to parse rrset: " <> nam)
-
-  logDebugN ("Find matching permissions for: " <> PDNS.rrset_name rrset)
-
-  pure $ filterDomainPerms zone labels (PDNS.rrset_type rrset) eperms
-
--- | Ensure the user has sufficient permissions for this RRset
-ensureHasRecordPermissions :: [ElabDomainPerm] -> ZoneId -> PDNS.RRSet -> GerdM ()
-ensureHasRecordPermissions eperms zone@(ZoneId raw) rrset = do
-    matching <- filterDomainPermsRRSet zone rrset eperms
-    when (null matching)
-      (deny ("update records for zone " <> raw))
-    logDebugN ("Matching permissions:\n" <> T.unlines (pprElabDomainPerm <$> matching))
 
 showT :: Show a => a -> T.Text
 showT = T.pack . show

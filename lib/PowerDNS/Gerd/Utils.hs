@@ -17,13 +17,15 @@ module PowerDNS.Gerd.Utils
   , pprDomainPattern
   , quoted
   , ourVersion
-  , runLog )
+  , runLog
+  , makeOurLenses
+  )
 where
 
 import           Control.Applicative (many, optional)
 import           Control.Monad.Logger (LogLevel(..), LogSource, LoggingT,
                                        filterLogger, runStdoutLoggingT)
-import           Data.Char (isAsciiLower, isAsciiUpper, isDigit)
+import           Data.Char (isAsciiLower, isAsciiUpper, isDigit, toLower)
 import           Data.Foldable (asum)
 import           Data.Version (showVersion)
 
@@ -32,6 +34,9 @@ import qualified Data.Text as T
 import           Development.GitRev
 
 import           Control.Monad.IO.Class (MonadIO)
+import           Data.List (stripPrefix)
+import           Language.Haskell.TH (DecsQ, Name, mkName, nameBase)
+import           Optics
 import           Paths_powerdns_gerd (version)
 import           PowerDNS.Gerd.Permission
 
@@ -142,7 +147,7 @@ pprElabDomainPerm :: ElabDomainPerm -> T.Text
 pprElabDomainPerm (ElabDomainPerm zone pat allowed)
     = "pattern " <> quoted (pprDomainPattern pat) <> zoneDescr <> " for " <> pprAllowed allowed
   where
-    zoneDescr = maybe "" (\(ZoneId z) -> " inside zone " <> quoted z <> " ") zone
+    zoneDescr = maybe "" (\(ZoneId z) -> " inside zone " <> quoted z) zone
 
 quoted :: T.Text -> T.Text
 quoted x = "\"" <> x <> "\""
@@ -162,3 +167,18 @@ ourVersion = unlines [ "version: " <> showVersion version
 
 runLog :: MonadIO m => Int -> LoggingT m a -> m a
 runLog verbosity = runStdoutLoggingT . filterLogger (logFilter verbosity)
+
+makeOurLenses :: String -> Name -> DecsQ
+makeOurLenses pref = makeLensesWith (lensRules & lensField .~ namer)
+  where
+    namer :: FieldNamer
+    namer _dat _fs f = [TopName (mkName (go fun))]
+      where
+        fun = nameBase f
+
+
+    lower []     = []
+    lower (x:xs) = toLower x : xs
+
+    go :: String -> String
+    go s = maybe s lower (stripPrefix pref s)
