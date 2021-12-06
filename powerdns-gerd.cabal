@@ -60,6 +60,7 @@ library powerdns-gerd-lib
     other-modules:    PowerDNS.Gerd.API
                       PowerDNS.Gerd.User
                       PowerDNS.Gerd.User.Types
+                      PowerDNS.Gerd.User.Optics
                       PowerDNS.Gerd.Types
                       PowerDNS.Gerd.Permission
                       PowerDNS.Gerd.Permission.Types

@@ -1,17 +1,24 @@
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeApplications  #-}
 module PowerDNS.Gerd.Permission
   ( module PowerDNS.Gerd.Permission.Types
+  , module PowerDNS.Gerd.Permission.Optics
   , elaborateDomainPerms
   , filterDomainPerms
-  , getPerZonePerms
+  , userPerZonePerms
+  , getAuthorization
   )
 where
 
 import qualified Data.Map as M
 
+import           Data.Maybe (fromMaybe)
 import qualified Data.Text as T
+import           Optics
 import           PowerDNS.API (RecordType)
+import           PowerDNS.Gerd.Permission.Optics
 import           PowerDNS.Gerd.Permission.Types
 import           PowerDNS.Gerd.User
 
@@ -34,28 +41,32 @@ matchesAllowSpec :: RecordType -> AllowSpec -> Bool
 matchesAllowSpec _ MayModifyAnyRecordType    = True
 matchesAllowSpec rt (MayModifyRecordType xs) = rt `elem` xs
 
-getPerZonePerms :: (PerZonePerms -> Authorization a) -> T.Text -> User -> Authorization a
-getPerZonePerms f zone user = maybe Forbidden f (M.lookup (ZoneId zone) (zpPerZonePerms (psZonePerms (_uPerms user))))
+userPerZonePerms :: ZoneId -> Lens' PerZonePerms (Authorization a) -> AffineFold User (Authorization a)
+userPerZonePerms zone f = castOptic $
+  #uPerms % #psOurZonePerms % #zpZones % at zone % _Just % f
+
+getAuthorization :: AffineFold User (Authorization a) -> User -> Authorization a
+getAuthorization f u = fromMaybe Forbidden (preview f u)
 
 elaborateDomainPerms :: User -> [ElabDomainPerm]
 elaborateDomainPerms user = permsWithoutZoneId <> permsWithZoneId
   where
     permsWithoutZoneId :: [ElabDomainPerm]
     permsWithoutZoneId = do
-      (pat, allowed) <- zpUndestrictedDomainPerms (psZonePerms (_uPerms user))
+      (pat, allowed) <- user ^. #uPerms % #psOurZonePerms % #zpUnrestrictedDomainPerms
       pure ElabDomainPerm{ epZone = Nothing
-                               , epDomainPat = pat
-                               , epAllowed = allowed
-                               }
+                         , epDomainPat = pat
+                         , epAllowed = allowed
+                         }
 
     permsWithZoneId :: [ElabDomainPerm]
     permsWithZoneId = do
-      (zone, perms) <- M.toList (zpPerZonePerms (psZonePerms (_uPerms user)))
-      (pat, allowed) <- pzpDomainPerms perms
+      (zone, ps) <- user ^. #uPerms % #psOurZonePerms % #zpZones % to M.toList
+      (pat, allowed) <- ps ^. #pzpDomainPerms
       pure ElabDomainPerm{ epZone = Just zone
-                               , epDomainPat = pat
-                               , epAllowed = allowed
-                               }
+                         , epDomainPat = pat
+                         , epAllowed = allowed
+                         }
 
 matchesZone :: ZoneId -> Maybe ZoneId -> Bool
 matchesZone _ Nothing  = True

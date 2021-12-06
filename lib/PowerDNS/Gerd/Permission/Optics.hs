@@ -1,13 +1,20 @@
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE UndecidableInstances  #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module PowerDNS.Gerd.Permission.Optics
 where
 
 import PowerDNS.Gerd.Permission.Types
-import PowerDNS.Gerd.Utils
+
+import Optics.TH
 
 
-$(makeOurLenses "pzp" ''PerZonePerms)
-$(makeOurLenses "zp" ''ZonePerms)
-$(makeOurLenses "ps" ''PermSet)
-$(makeOurLenses "sp" ''ServerPerms)
+$(makeFieldLabelsNoPrefix ''PerZonePerms)
+$(makeFieldLabelsNoPrefix ''ZonePerms)
+$(makeFieldLabelsNoPrefix ''PermSet)
+$(makeFieldLabelsNoPrefix ''ServerPerms)

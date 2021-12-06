@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module PowerDNS.Gerd.Server.Endpoints
@@ -18,9 +19,10 @@ import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as BSL
 import           Data.Foldable (for_, toList)
 import qualified Data.Map as M
-import           Data.Maybe (catMaybes)
+import           Data.Maybe (catMaybes, fromMaybe)
 import qualified Data.Text as T
 import           Network.HTTP.Types (Status(Status))
+import           Optics (AffineFold, Lens', castOptic, preview, (%))
 import qualified PowerDNS.API as PDNS
 import qualified PowerDNS.Client as PDNS
 import           PowerDNS.Gerd.Permission
@@ -61,8 +63,8 @@ wither f t = catMaybes <$> traverse f t
 
 -- | Given a 'PermSet' selector, raise a forbidden error if the authorization is set to forbid, otherwise call
 -- the provided continuation with the authorization token.
-withZonePerm :: T.Text -> (ZonePerms M.Map -> Authorization a) -> User -> (a -> GerdM b) -> GerdM b
-withZonePerm title f user act = case f (psZonePerms (_uPerms user)) of
+withZonePerm :: T.Text -> (Lens' (ZonePerms M.Map) (Authorization a)) -> User -> (a -> GerdM b) -> GerdM b
+withZonePerm title f user act = case getAuthorization (castOptic $ #uPerms % #psOurZonePerms % f) user of
   Forbidden      -> do
     logWarnN ("Deny " <> title)
     forbidden
@@ -71,10 +73,15 @@ withZonePerm title f user act = case f (psZonePerms (_uPerms user)) of
 
 -- | Given a 'PerZonePerms' selector, raise a forbidden error if the authorization is set to forbid, otherwise call
 -- the provided continuation with the authorization token.
-withPerZonePerm :: T.Text -> (PerZonePerms -> Authorization a) -> T.Text -> User -> (a -> GerdM b) -> GerdM b
-withPerZonePerm title f zone user act = case getPerZonePerms f zone user of
+withPerZonePerm :: T.Text
+                -> Lens' PerZonePerms (Authorization a)
+                -> ZoneId
+                -> User
+                -> (a -> GerdM b)
+                -> GerdM b
+withPerZonePerm title f zone user act = case getAuthorization (userPerZonePerms zone f) user of
     Forbidden      -> do
-        logWarnN ("Deny " <> title <> " on [" <> zone <> "]")
+        logWarnN ("Deny " <> title <> " on [" <> getZone zone <> "]")
         forbidden
     Authorized tok -> do
         act tok
@@ -110,35 +117,35 @@ prepend :: T.Text -> T.Text -> T.Text
 prepend = (<>)
 
 -- | Variant of 'withPerZonePerm' that throws away the authorization token.
-hasPerZonePerm :: T.Text -> (PerZonePerms -> Authorization ()) -> T.Text -> User -> GerdM ()
+hasPerZonePerm :: T.Text -> (Lens' PerZonePerms (Authorization ())) -> ZoneId -> User -> GerdM ()
 hasPerZonePerm title f zone user = withPerZonePerm title f zone user (\_tok -> pure ())
 
 -- | Variant of 'withZonePerm' that throws away the authorization token.
-hasZonePerm :: T.Text -> (ZonePerms M.Map -> Authorization ()) -> User -> GerdM ()
+hasZonePerm :: T.Text -> (Lens' (ZonePerms M.Map) (Authorization ())) -> User -> GerdM ()
 hasZonePerm title f user = withZonePerm title f user (\_tok -> pure ())
 
 guardedZones :: User -> PDNS.ZonesAPI AsGerd
 guardedZones acc = PDNS.ZonesAPI
     { PDNS.apiListZones     = \srv zone dnssec -> do
-        withZonePerm "zone list" zpListZones acc $ \perm -> do
+        withZonePerm "zone list" #zpListZones acc $ \perm -> do
           zs <- runProxy (PDNS.listZones srv zone dnssec)
           case perm of
             Filtered   -> wither (filterZoneMaybe eperms) zs
             Unfiltered -> pure zs
 
     , PDNS.apiCreateZone    = \srv rrset zone -> do
-        hasZonePerm "zone create" zpCreateZone acc
+        hasZonePerm "zone create" #zpCreateZone acc
         runProxy (PDNS.createZone srv rrset zone)
 
     , PDNS.apiGetZone       = \srv zone rrs -> do
-        withPerZonePerm "view zone" pzpViewZone zone acc $ \perm -> do
+        withPerZonePerm "view zone" #pzpViewZone (ZoneId zone) acc $ \perm -> do
           z <- runProxy (PDNS.getZone srv zone rrs)
           case perm of
             Filtered   -> filterZone eperms z
             Unfiltered -> pure z
 
     , PDNS.apiDeleteZone    = \srv zone -> do
-        hasPerZonePerm "zone delete" pzpDeleteZone zone acc
+        hasPerZonePerm "zone delete" #pzpDeleteZone (ZoneId zone) acc
         runProxy (PDNS.deleteZone srv zone)
 
     , PDNS.apiUpdateRecords = \srv zone rrs -> do
@@ -155,23 +162,23 @@ guardedZones acc = PDNS.ZonesAPI
         runProxy (PDNS.updateRecords srv zone rrs)
 
     , PDNS.apiUpdateZone    = \srv zone zoneData -> do
-        hasPerZonePerm "zone update" pzpUpdateZone zone acc
+        hasPerZonePerm "zone update" #pzpUpdateZone (ZoneId zone) acc
         runProxy (PDNS.updateZone srv zone zoneData)
 
     , PDNS.apiTriggerAxfr   = \srv zone -> do
-        hasPerZonePerm "axfr trigger" pzpTriggerAxfr zone acc
+        hasPerZonePerm "axfr trigger" #pzpTriggerAxfr (ZoneId zone) acc
         runProxy (PDNS.triggerAxfr srv zone)
 
     , PDNS.apiNotifySlaves  = \srv zone -> do
-        hasPerZonePerm "slave notification" pzpNotifySlaves zone acc
+        hasPerZonePerm "slave notification" #pzpNotifySlaves (ZoneId zone) acc
         runProxy (PDNS.notifySlaves srv zone)
 
     , PDNS.apiGetZoneAxfr   = \srv zone -> do
-        hasPerZonePerm "axfr view" pzpGetZoneAxfr zone acc
+        hasPerZonePerm "axfr view" #pzpGetZoneAxfr (ZoneId zone) acc
         runProxy (PDNS.getZoneAxfr srv zone)
 
     , PDNS.apiRectifyZone   = \srv zone -> do
-        hasPerZonePerm "zone rectify" pzpRectifyZone zone acc
+        hasPerZonePerm "zone rectify" #pzpRectifyZone (ZoneId zone) acc
         runProxy (PDNS.rectifyZone srv zone)
     }
   where

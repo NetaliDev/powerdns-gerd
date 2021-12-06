@@ -1,5 +1,6 @@
 {-# LANGUAGE ApplicativeDo     #-}
 {-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 module PowerDNS.Gerd.Config
@@ -28,7 +29,7 @@ import qualified Data.Set as S
 import           Optics
 import           PowerDNS.API.Zones
 import           PowerDNS.Gerd.Permission
-import           PowerDNS.Gerd.Permission.Optics
+import           PowerDNS.Gerd.Permission.Optics ()
 import           PowerDNS.Gerd.User
 import           PowerDNS.Gerd.Utils
 import           UnliftIO (MonadIO, liftIO)
@@ -85,7 +86,7 @@ permSetSpec :: ValueSpec (PermSet Lookup)
 permSetSpec = sectionsSpec "permset-spec" $ do
     psVersionsPerms <- optSectionDefault' (Authorized ()) "versions" authorizationSpec "Permission for (undocumented) `GET /api`. Allowed by default."
     psServersPerms <- optSectionDefault' serversForbidden "servers" serverPermsSpec "Permission for `/servers` endpoints. All forbidden by default."
-    psZonePerms <- optSectionDefault' zonesForbidden "zones" zonePermsSpec "Permission for `/servers/:server_id/zones` endpoints. All forbidden by default."
+    psOurZonePerms <- optSectionDefault' zonesForbidden "zones" zonePermsSpec "Permission for `/servers/:server_id/zones` endpoints. All forbidden by default."
     psTSIGKeyPerms <- optSectionDefault' tsigkeyForbidden "tsigkeys" tsigkeyPermsSpec "Permissions for `/servers/:server_id/tsigkeys` endpoints. All forbidden by default."
     pure PermSet{..}
   where
@@ -211,12 +212,12 @@ configSpec = sectionsSpec "top-level" $ do
 
 zonePermsSpec :: ValueSpec (ZonePerms Lookup)
 zonePermsSpec = sectionsSpec "zones-spec" $ do
-  zpPerZonePerms <- Lookup <$> optSectionDefault' []
+  zpZones <- Lookup <$> optSectionDefault' []
                                                 "zones"
                                                 (listSpec zoneMapItemSpec)
                                                 "Zone-specific permissions"
 
-  zpUndestrictedDomainPerms <- optSectionDefault' []
+  zpUnrestrictedDomainPerms <- optSectionDefault' []
                                        "domains"
                                        (listSpec absRecordPermSpec)
                                       "Global domain permissions"
@@ -226,11 +227,11 @@ zonePermsSpec = sectionsSpec "zones-spec" $ do
 
 userSpec :: ValueSpec UserNonValidated
 userSpec = sectionsSpec "user-spec" $ do
-  _unvName <- Username <$> reqSection "name" "The name of the API user"
-  _unvPassHash <- reqSection' "passHash"
+  unvName <- Username <$> reqSection "name" "The name of the API user"
+  unvPassHash <- reqSection' "passHash"
                             (T.encodeUtf8 <$> textSpec)
                             "Argon2id hash of the secret as a string in the original reference format, e.g.: $argon2id$v=19$m=65536,t=3,p=2$c29tZXNhbHQ$RdescudvJCsgt3ub+b+dWRWJTmaaJObG"
-  _unvPerms <- reqSection' "permissions" permSetSpec "Permissions for this user"
+  unvPerms <- reqSection' "permissions" permSetSpec "Permissions for this user"
 
   pure UserNonValidated{..}
 
@@ -251,12 +252,12 @@ validate cfg = do
              , cfgUpstreamApiKey = cfgnvUpstreamApiKey cfg
              , cfgListenAddress = cfgnvListenAddress cfg
              , cfgListenPort = cfgnvListenPort cfg
-             , cfgUsers = M.fromList ((_uName &&& id) <$> users)
+             , cfgUsers = M.fromList ((uName &&& id) <$> users)
              }
 
 validatePermSet :: PermSet Lookup -> IO (PermSet M.Map)
 validatePermSet ups = do
-  let zones = ups ^. zonePerms %  perZonePerms % to runLookup
+  let zones = ups ^. #psOurZonePerms % #zpZones % to runLookup
       dups = duplicates (fst <$> zones)
 
   unless (null dups) $
@@ -268,14 +269,14 @@ validatePermSet ups = do
         unless (zone `T.isSuffixOf` pat') $
             fail ("Pattern is out of zone " <> T.unpack (quoted zone) <> ": " <> T.unpack pat')
 
-  pure (ups & zonePerms % perZonePerms .~ M.fromList zones)
+  pure (ups & #psOurZonePerms % #zpZones .~ M.fromList zones)
 
 validateUser :: UserNonValidated -> IO User
 validateUser unv = do
-  perms <- validatePermSet (_unvPerms unv)
-  pure User{ _uName = _unvName unv
-           , _uPassHash = _unvPassHash unv
-           , _uPerms = perms }
+  perms <- validatePermSet (unvPerms unv)
+  pure User{ uName = unvName unv
+           , uPassHash = unvPassHash unv
+           , uPerms = perms }
 
 
 duplicates :: Ord a => [a] -> [a]
@@ -291,6 +292,6 @@ duplicates = go mempty
 
 validateUniqueUsers :: ConfigNonValidated -> IO ()
 validateUniqueUsers cfg = do
-  let dups = duplicates (_unvName <$> cfgnvUsers cfg)
+  let dups = duplicates (unvName <$> cfgnvUsers cfg)
   unless (null dups) $
     fail ("Duplicate users: " <> T.unpack (T.intercalate ", " (getUsername <$> dups)))

@@ -81,7 +81,7 @@ newtype Lookup k v = Lookup { runLookup :: [(k, v)] }
 data PermSet (c :: * -> * -> *) = PermSet
   { psVersionsPerms :: Authorization ()
   , psServersPerms :: ServerPerms
-  , psZonePerms :: ZonePerms c
+  , psOurZonePerms :: ZonePerms c
   , psTSIGKeyPerms :: TSIGKeyPerms
   }
 
@@ -96,8 +96,8 @@ data ServerPerms = ServerPerms
 
 -- | Permissions pertaining to the @/zones@ endpoints
 data ZonePerms (c :: * -> * -> *) = ZonePerms
-  { zpUndestrictedDomainPerms :: PermissionList
-  , zpPerZonePerms :: c ZoneId PerZonePerms
+  { zpUnrestrictedDomainPerms :: PermissionList
+  , zpZones :: c ZoneId PerZonePerms
   , zpCreateZone :: Authorization ()
   , zpListZones :: Authorization FilteredPermission
   }

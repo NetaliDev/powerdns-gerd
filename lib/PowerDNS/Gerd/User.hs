@@ -3,6 +3,8 @@ module PowerDNS.Gerd.User
   , Username(..)
   , UserNonValidated(..)
   , authenticate
+  , module PowerDNS.Gerd.User.Optics
+  , module PowerDNS.Gerd.User.Types
   )
 where
 
@@ -12,6 +14,7 @@ import qualified Data.Text as T
 import           Libsodium
 
 import qualified Data.Map as M
+import           PowerDNS.Gerd.User.Optics
 import           PowerDNS.Gerd.User.Types
 
 authenticate :: M.Map Username User -> T.Text -> B8.ByteString -> IO (Maybe User)
@@ -21,7 +24,7 @@ authenticate db name pass = maybe (pure Nothing)
   where
     verify :: User -> IO (Maybe User)
     verify ac = do
-      valid <- verifyArgon2id pass (_uPassHash ac)
+      valid <- verifyArgon2id pass (uPassHash ac)
       if valid
         then pure (Just ac)
         else pure Nothing

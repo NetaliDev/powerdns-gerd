@@ -18,14 +18,13 @@ module PowerDNS.Gerd.Utils
   , quoted
   , ourVersion
   , runLog
-  , makeOurLenses
   )
 where
 
 import           Control.Applicative (many, optional)
 import           Control.Monad.Logger (LogLevel(..), LogSource, LoggingT,
                                        filterLogger, runStdoutLoggingT)
-import           Data.Char (isAsciiLower, isAsciiUpper, isDigit, toLower)
+import           Data.Char (isAsciiLower, isAsciiUpper, isDigit)
 import           Data.Foldable (asum)
 import           Data.Version (showVersion)
 
@@ -34,11 +33,8 @@ import qualified Data.Text as T
 import           Development.GitRev
 
 import           Control.Monad.IO.Class (MonadIO)
-import           Data.List (stripPrefix)
-import           Language.Haskell.TH (DecsQ, Name, mkName, nameBase)
-import           Optics
 import           Paths_powerdns_gerd (version)
-import           PowerDNS.Gerd.Permission
+import           PowerDNS.Gerd.Permission.Types
 
 const0 :: a -> a
 const0 a = a
@@ -167,18 +163,3 @@ ourVersion = unlines [ "version: " <> showVersion version
 
 runLog :: MonadIO m => Int -> LoggingT m a -> m a
 runLog verbosity = runStdoutLoggingT . filterLogger (logFilter verbosity)
-
-makeOurLenses :: String -> Name -> DecsQ
-makeOurLenses pref = makeLensesWith (lensRules & lensField .~ namer)
-  where
-    namer :: FieldNamer
-    namer _dat _fs f = [TopName (mkName (go fun))]
-      where
-        fun = nameBase f
-
-
-    lower []     = []
-    lower (x:xs) = toLower x : xs
-
-    go :: String -> String
-    go s = maybe s lower (stripPrefix pref s)

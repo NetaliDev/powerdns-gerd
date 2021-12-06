@@ -17,15 +17,15 @@ newtype Username = Username { getUsername :: T.Text }
   deriving (Eq, Ord, Show)
 
 data User = User
-  { _uName :: Username
-  , _uPassHash :: B8.ByteString
-  , _uPerms :: PermSet M.Map
+  { uName :: Username
+  , uPassHash :: B8.ByteString
+  , uPerms :: PermSet M.Map
   } deriving Show
 
 data UserNonValidated = UserNonValidated
-  { _unvName :: Username
-  , _unvPassHash :: B8.ByteString
-  , _unvPerms :: PermSet Lookup
+  { unvName :: Username
+  , unvPassHash :: B8.ByteString
+  , unvPerms :: PermSet Lookup
   } deriving Show
 
 data MemLimit = MemMin
