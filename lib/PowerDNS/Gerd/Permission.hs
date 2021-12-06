@@ -4,7 +4,6 @@
 {-# LANGUAGE TypeApplications  #-}
 module PowerDNS.Gerd.Permission
   ( module PowerDNS.Gerd.Permission.Types
-  , module PowerDNS.Gerd.Permission.Optics
   , elaborateDomainPerms
   , filterDomainPerms
   , userPerZonePerms
@@ -18,7 +17,7 @@ import           Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import           Optics
 import           PowerDNS.API (RecordType)
-import           PowerDNS.Gerd.Permission.Optics
+import           PowerDNS.Gerd.Permission.Optics ()
 import           PowerDNS.Gerd.Permission.Types
 import           PowerDNS.Gerd.User
 
