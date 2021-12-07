@@ -17,15 +17,11 @@ module PowerDNS.Gerd.Permission
   )
 where
 
-import qualified Data.Map as M
 
 import           Data.Bifunctor (first)
-import           Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import qualified PowerDNS.API as PDNS
-import           PowerDNS.Gerd.Permission.Optics ()
 import           PowerDNS.Gerd.Permission.Types
-import           PowerDNS.Gerd.User
 import           PowerDNS.Gerd.Utils
 
 matchesDomPat :: DomainLabels -> DomPat -> Bool

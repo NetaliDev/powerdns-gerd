@@ -6,60 +6,9 @@ users:
   * name: "user"
     passHash: "$argon2id$v=19$m=8,t=1,p=1$cjV5UDFCSHRSaXJ0am9PZg$OIscttF7A8I40AK9Zxa3Sw"
 
-    -- Permissions to update records, filtered by a name and type pattern. This allows for modification
-    -- irrespective of what zone the domain is in.
-    -- https://doc.powerdns.com/authoritative/http-api/zone.html#patch--servers-server_id-zones-zone_id
-    records:
-      * { name: "2.example.com.", types: [A, AAAA] }
-      * { name: "3.example.com.", types: [MX] }
-
-    versions: permit
-    servers:
-      any: permit
-    tsigkeys:
-      any: permit
-
-    zones:
-      perZone:
-        * zone: "example.com."
-
-        -- Permissions to update records under this zone, filtered by a name and type pattern.
-        -- If left empty or not specified, this is forbidden.
-        -- https://doc.powerdns.com/authoritative/http-api/zone.html#patch--servers-server_id-zones-zone_id
-        records:
-          * { name: "1.example.com.", types: [A, AAAA] }
-          * { name: "foo.example.com.", types: any }
-
-        -- https://doc.powerdns.com/authoritative/http-api/zone.html#get--servers-server_id-zones-zone_id
-        -- If left empty or not specified, this is forbidden.
-        view: filtered
-
-        -- https://doc.powerdns.com/authoritative/http-api/zone.html#delete--servers-server_id-zones-zone_id
-        -- If left empty or not specified, this is forbidden.
-        delete: permit
-
-        -- https://doc.powerdns.com/authoritative/http-api/zone.html#put--servers-server_id-zones-zone_id
-        -- If left empty or not specified, this is forbidden.
-        update: permit
-
-        -- https://doc.powerdns.com/authoritative/http-api/zone.html#put--servers-server_id-zones-zone_id-axfr-retrieve
-        -- If left empty or not specified, this is forbidden.
-        triggerAxfr: permit
-
-        -- https://doc.powerdns.com/authoritative/http-api/zone.html#put--servers-server_id-zones-zone_id-notify
-        -- If left empty or not specified, this is forbidden.
-        notifySlaves: permit
-
-        -- https://doc.powerdns.com/authoritative/http-api/zone.html#get--servers-server_id-zones-zone_id-export
-        -- If left empty or not specified, this is forbidden.
-        getAxfr: permit
-
-        -- https://doc.powerdns.com/authoritative/http-api/zone.html#put--servers-server_id-zones-zone_id-rectify
-        -- If left empty or not specified, this is forbidden.
-        rectifyZone: permit
-
-        metadataPerms:
-          any: permit
-
-        cryptokeyPerms:
-          any: permit
+    permissions:
+      search: permit
+      zoneList: filtered
+      zoneUpdateRecords:
+        * { domain: "2.example.com.", types: [A, AAAA] }
+        * { domain: "3.example.com.", types: [A, AAAA] }

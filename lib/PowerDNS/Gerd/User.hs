@@ -2,7 +2,6 @@ module PowerDNS.Gerd.User
   ( User(..)
   , Username(..)
   , authenticate
-  , module PowerDNS.Gerd.User.Optics
   , module PowerDNS.Gerd.User.Types
   )
 where
@@ -12,7 +11,6 @@ import qualified Data.ByteString.Char8 as B8
 import qualified Data.Text as T
 import           Libsodium
 
-import           PowerDNS.Gerd.User.Optics
 import           PowerDNS.Gerd.User.Types
 
 authenticate :: [(Username, User)] -> T.Text -> B8.ByteString -> IO (Maybe User)

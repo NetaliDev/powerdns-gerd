@@ -10,8 +10,7 @@ module PowerDNS.Gerd.Config
   )
 where
 
-import           Control.Arrow ((&&&))
-import           Data.Maybe (fromMaybe, maybeToList)
+import           Data.Maybe (fromMaybe)
 import           Data.String (fromString)
 
 import           Config.Schema
@@ -23,13 +22,9 @@ import qualified Text.PrettyPrint as Pretty
 
 import           Control.Monad (unless)
 import           Data.Bifunctor (first)
-import           Data.Foldable (for_)
-import qualified Data.Map as M
 import qualified Data.Set as S
-import           Optics
 import           PowerDNS.API.Zones
 import           PowerDNS.Gerd.Permission
-import           PowerDNS.Gerd.Permission.Optics ()
 import           PowerDNS.Gerd.User
 import           PowerDNS.Gerd.Utils
 import           UnliftIO (MonadIO, liftIO)
@@ -46,8 +41,8 @@ data Config = Config
 optSectionDefault' :: a -> T.Text -> ValueSpec a -> T.Text -> SectionsSpec a
 optSectionDefault' def sect spec descr = fromMaybe def <$> optSection' sect spec descr
 
-simpleAuthSpec :: ValueSpec SimpleAuthorization
-simpleAuthSpec = SimpleAuthorization <$ atomSpec "permit"
+simpleAuthSpec :: ValueSpec [SimpleAuthorization]
+simpleAuthSpec = [] <$ atomSpec "forbid"
 
 auth''spec :: ValueSpec [Authorization'']
 auth''spec = (pure <$> permit) <!> oneOrList
@@ -63,17 +58,18 @@ anyDomPat :: DomPat
 anyDomPat = DomPat [DomGlobStar]
 
 permZoneListSpec :: ValueSpec [Authorization Filtered DomPat]
-permZoneListSpec = (pure <$> permit) <!> oneOrList
+permZoneListSpec = (pure <$> permit) <!> (pure <$> filtered) <!> oneOrList
     (sectionsSpec "perm-zone-list-spec" $ do
         authServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
-        authPattern <- optSectionDefault' anyDomPat "pattern" domPatSpec "Matching this zone. If left empty, will match any zone"
+        authPattern <- optSectionDefault' anyDomPat "zone" domPatSpec "Matching this zone. If left empty, will match any zone"
         authToken <- reqSection' "type" filteredSpec "Whether or not records will be filtered using zoneUpdateRecords permissions"
         pure Authorization{..})
   where
     permit = Authorization "localhost" anyDomPat Unfiltered <$ atomSpec "permit"
+    filtered = Authorization "localhost" anyDomPat Filtered <$ atomSpec "filtered"
 
 permZoneViewSpec :: ValueSpec [Authorization Filtered DomPat]
-permZoneViewSpec = (pure <$> permit) <!> oneOrList
+permZoneViewSpec = (pure <$> permit) <!> (pure <$> filtered) <!> oneOrList
     (sectionsSpec "perm-zone-view-spec" $ do
         authServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
         authPattern <- optSectionDefault' anyDomPat "zone" domPatSpec "Matching this zone. If left empty, will match any zone"
@@ -81,6 +77,7 @@ permZoneViewSpec = (pure <$> permit) <!> oneOrList
         pure Authorization{..})
   where
     permit = Authorization "localhost" anyDomPat Unfiltered <$ atomSpec "permit"
+    filtered = Authorization "localhost" anyDomPat Filtered <$ atomSpec "filtered"
 
 permZoneSpec :: ValueSpec [Authorization' DomPat]
 permZoneSpec = (pure <$> permit) <!> oneOrList
@@ -107,7 +104,7 @@ permZoneUpdateRecordsSpec = sectionsSpec "perm-zone-update-records-spec" $ do
 
 permsSpec :: ValueSpec Perms
 permsSpec = sectionsSpec "perms-spec" $ do
-  permApiVersions <- maybeToList <$> optSection' "apiVersions" simpleAuthSpec "Permission for listing API versions"
+  permApiVersions <- optSectionDefault' [SimpleAuthorization] "apiVersions" simpleAuthSpec "Permission for listing API versions. Permitted by default."
   permServerList <- optSectionDefault' [] "serverList" auth''spec "Permission for listing servers"
   permServerView <- optSectionDefault' [] "serverView" auth''spec "Permission for viewing a server"
   permSearch <- optSectionDefault' [] "search" auth''spec "Permission for searching"

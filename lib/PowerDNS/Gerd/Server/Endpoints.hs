@@ -17,7 +17,7 @@ import           Control.Monad.Logger (logDebugN, logErrorN, logWarnN)
 import           Control.Monad.Reader (ask)
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as BSL
-import           Data.Foldable (for_, toList, traverse_)
+import           Data.Foldable (toList, traverse_)
 import           Data.Maybe (catMaybes, fromMaybe)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
