@@ -144,11 +144,6 @@ domPatSpec = customSpec "Absolute domain (with trailing dot). A leading wildcard
                             textSpec
                             (first T.pack . parseDomPat)
 
-zoneIdSpec :: ValueSpec ZoneId
-zoneIdSpec = ZoneId <$> customSpec "Zone name (with trailing dot)."
-                        textSpec
-                        (first T.pack . parseAbsDomainLabels)
-
 recordAtomSpec :: ValueSpec RecordType
 recordAtomSpec =    A          <$ atomSpec "A"
                 <!> AAAA       <$ atomSpec "AAAA"
