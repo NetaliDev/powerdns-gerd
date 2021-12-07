@@ -14,7 +14,4 @@ import PowerDNS.Gerd.Permission.Types
 import Optics.TH
 
 
-$(makeFieldLabelsNoPrefix ''PerZonePerms)
-$(makeFieldLabelsNoPrefix ''ZonePerms)
-$(makeFieldLabelsNoPrefix ''PermSet)
-$(makeFieldLabelsNoPrefix ''ServerPerms)
+$(makeFieldLabelsNoPrefix ''Perms)

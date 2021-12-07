@@ -2,7 +2,6 @@
 module PowerDNS.Gerd.User.Types
   ( User(..)
   , Username(..)
-  , UserNonValidated(..)
   , MemLimit(..)
   , OpsLimit(..)
   )
@@ -19,13 +18,7 @@ newtype Username = Username { getUsername :: T.Text }
 data User = User
   { uName :: Username
   , uPassHash :: B8.ByteString
-  , uPerms :: PermSet M.Map
-  } deriving Show
-
-data UserNonValidated = UserNonValidated
-  { unvName :: Username
-  , unvPassHash :: B8.ByteString
-  , unvPerms :: PermSet Lookup
+  , uPerms :: Perms
   } deriving Show
 
 data MemLimit = MemMin

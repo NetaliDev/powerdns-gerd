@@ -4,77 +4,75 @@
 {-# LANGUAGE TypeApplications  #-}
 module PowerDNS.Gerd.Permission
   ( module PowerDNS.Gerd.Permission.Types
-  , elaborateDomainPerms
-  , filterDomainPerms
-  , userPerZonePerms
-  , getAuthorization
+
+  -- * Authorization filters
+  , matchingSrv
+  , matchingZone
+
+  -- * Pattern matchers
+  , matchesDomTyPat
+  , matchesDomPat
+  , matchesRecTyPat
+  , rrsetMatchesDomTyPat
   )
 where
 
 import qualified Data.Map as M
 
+import           Data.Bifunctor (first)
 import           Data.Maybe (fromMaybe)
 import qualified Data.Text as T
-import           Optics
-import           PowerDNS.API (RecordType)
+import qualified PowerDNS.API as PDNS
 import           PowerDNS.Gerd.Permission.Optics ()
 import           PowerDNS.Gerd.Permission.Types
 import           PowerDNS.Gerd.User
+import           PowerDNS.Gerd.Utils
 
-matchesDomainPat :: DomainLabels -> DomainPattern -> Bool
-matchesDomainPat (DomainLabels x) (DomainPattern y) = go (reverse x) (reverse y)
+matchesDomPat :: DomainLabels -> DomPat -> Bool
+matchesDomPat (DomainLabels x) (DomPat y) = go (reverse x) (reverse y)
   where
-    go :: [T.Text] -> [DomainLabelPattern] -> Bool
+    go :: [T.Text] -> [DomLabelPat] -> Bool
     go []   []            = True
     go []  _ps            = False
     go _ls  []            = False
     go _ls  [DomGlobStar] = True
     go (l:ls) (p:ps)      = patternMatches l p && go ls ps
 
-    patternMatches :: T.Text -> DomainLabelPattern -> Bool
+    patternMatches :: T.Text -> DomLabelPat -> Bool
     patternMatches _l DomGlob       = True
     patternMatches l (DomLiteral p) = l == p
     patternMatches _l DomGlobStar   = error "patternMatches: impossible! DomGlobStar in the middle"
 
-matchesAllowSpec :: RecordType -> AllowSpec -> Bool
-matchesAllowSpec _ MayModifyAnyRecordType    = True
-matchesAllowSpec rt (MayModifyRecordType xs) = rt `elem` xs
+matchesRecTyPat :: PDNS.RecordType -> RecTyPat -> Bool
+matchesRecTyPat _ AnyRecordType = True
+matchesRecTyPat rt (AnyOf xs)   = rt `elem` xs
 
-userPerZonePerms :: ZoneId -> Lens' PerZonePerms (Authorization a) -> AffineFold User (Authorization a)
-userPerZonePerms zone f = castOptic $
-  #uPerms % #psOurZonePerms % #zpZones % at zone % _Just % f
+matchesDomTyPat :: DomainLabels -> PDNS.RecordType -> DomTyPat -> Bool
+matchesDomTyPat wantedDom wantedTy (dom, ty) = matchesDomPat wantedDom dom
+                                            && matchesRecTyPat wantedTy ty
 
-getAuthorization :: AffineFold User (Authorization a) -> User -> Authorization a
-getAuthorization f u = fromMaybe Forbidden (preview f u)
-
-elaborateDomainPerms :: User -> [ElabDomainPerm]
-elaborateDomainPerms user = permsWithoutZoneId <> permsWithZoneId
-  where
-    permsWithoutZoneId :: [ElabDomainPerm]
-    permsWithoutZoneId = do
-      (pat, allowed) <- user ^. #uPerms % #psOurZonePerms % #zpUnrestrictedDomainPerms
-      pure ElabDomainPerm{ epZone = Nothing
-                         , epDomainPat = pat
-                         , epAllowed = allowed
-                         }
-
-    permsWithZoneId :: [ElabDomainPerm]
-    permsWithZoneId = do
-      (zone, ps) <- user ^. #uPerms % #psOurZonePerms % #zpZones % to M.toList
-      (pat, allowed) <- ps ^. #pzpDomainPerms
-      pure ElabDomainPerm{ epZone = Just zone
-                         , epDomainPat = pat
-                         , epAllowed = allowed
-                         }
-
-matchesZone :: ZoneId -> Maybe ZoneId -> Bool
-matchesZone _ Nothing  = True
-matchesZone l (Just r) = l == r
-
-filterDomainPerms :: ZoneId -> DomainLabels -> RecordType -> [ElabDomainPerm] -> [ElabDomainPerm]
-filterDomainPerms wantedZone wantedDomain wantedRecTy eperms
-    = [ e| e@(ElabDomainPerm zone pat allow) <- eperms
-      , matchesZone wantedZone zone
-      , matchesDomainPat wantedDomain pat
-      , matchesAllowSpec wantedRecTy allow
+matchingSrv :: T.Text -> [Authorization tok pat] -> [Authorization tok pat]
+matchingSrv wantedSrv perms
+    = [ e| e@(Authorization srv _dom _res) <- perms
+      , wantedSrv == srv
       ]
+
+matchingZone :: T.Text -> ZoneId -> [Authorization tok DomPat] -> [Authorization tok DomPat]
+matchingZone wantedSrv (ZoneId wantedZone) perms
+    = [ e | e@(Authorization srv dom _tok) <- perms
+      , wantedSrv == srv
+      , matchesDomPat wantedZone dom
+      ]
+
+-- | Test whether a given RRSet matches any of the specified 'DomTyPat' patterns.
+rrsetMatchesDomTyPat :: [DomTyPat] -> PDNS.RRSet -> Either T.Text Bool
+rrsetMatchesDomTyPat pats rrset = do
+  let nam = PDNS.rrset_name rrset
+      ty = PDNS.rrset_type rrset
+
+  labels <- first (const ("failed to parse rrset: " <> nam))
+                  (parseAbsDomainLabels nam)
+
+  pure (any (\(domPat, recTyPat) -> labels `matchesDomPat` domPat
+                                 && ty `matchesRecTyPat` recTyPat
+            ) pats)

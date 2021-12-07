@@ -11,7 +11,7 @@ module PowerDNS.Gerd.Config
 where
 
 import           Control.Arrow ((&&&))
-import           Data.Maybe (fromMaybe)
+import           Data.Maybe (fromMaybe, maybeToList)
 import           Data.String (fromString)
 
 import           Config.Schema
@@ -34,117 +34,123 @@ import           PowerDNS.Gerd.User
 import           PowerDNS.Gerd.Utils
 import           UnliftIO (MonadIO, liftIO)
 
-data ConfigNonValidated = ConfigNonValidated
-  { cfgnvUpstreamApiBaseUrl :: T.Text
-  , cfgnvUpstreamApiKey :: T.Text
-  , cfgnvListenAddress :: HostPreference
-  , cfgnvListenPort :: Word16
-  , cfgnvUsers :: [UserNonValidated]
-  }
-
 data Config = Config
   { cfgUpstreamApiBaseUrl :: T.Text
   , cfgUpstreamApiKey :: T.Text
   , cfgListenAddress :: HostPreference
   , cfgListenPort :: Word16
-  , cfgUsers :: M.Map Username User
+  , cfgUsers :: [(Username, User)]
   }
 
 
 optSectionDefault' :: a -> T.Text -> ValueSpec a -> T.Text -> SectionsSpec a
 optSectionDefault' def sect spec descr = fromMaybe def <$> optSection' sect spec descr
 
-absRecordPermSpec :: ValueSpec (DomainPattern, AllowSpec)
-absRecordPermSpec = sectionsSpec "abs-record-spec" $ do
-  n <- reqSection' "name" domainPatSpec "The record name(s) that can be managed. Must be absolute with a trailing dot."
-  t <- reqSection' "types" recordTypeSpec "The record types that can be managed."
-  pure (n, t)
+simpleAuthSpec :: ValueSpec SimpleAuthorization
+simpleAuthSpec = SimpleAuthorization <$ atomSpec "permit"
 
-filteredPermissionSpec :: ValueSpec FilteredPermission
-filteredPermissionSpec = Filtered <$ atomSpec "filtered"
-                 <!> Unfiltered <$ atomSpec "unfiltered"
-
-authorizationSpec :: ValueSpec (Authorization ())
-authorizationSpec = Authorized () <$ atomSpec "permit"
-                <!> Forbidden <$ atomSpec "forbid"
-
-serverPermsSpec :: ValueSpec ServerPerms
-serverPermsSpec = sectionsSpec "server-perms-spec" $ do
-  spListServers <- optSectionDefault' Forbidden "listServers" authorizationSpec "Permission for `GET /servers`. Forbidden by default"
-  spGetServer <- optSectionDefault' Forbidden "getServer" authorizationSpec "Permission for `GET /servers/:server_id`. Forbidden by default"
-  spSearch <- optSectionDefault' Forbidden "search" authorizationSpec "Permission for `GET /servers/:server_id/search-data`. Forbidden by default"
-  spFlushCache <- optSectionDefault' Forbidden "flushCache" authorizationSpec "Permission for `PUT /servers/:server_id/cache/flush` Forbidden by default"
-  spStatistics <- optSectionDefault' Forbidden "statistics" authorizationSpec "Permission for `GET /servers/:server_id/statistics`. Forbidden by default"
-  pure ServerPerms{..}
-
-tsigkeyPermsSpec :: ValueSpec TSIGKeyPerms
-tsigkeyPermsSpec = sectionsSpec "tsigkeys-perms-spec" $ do
-  tspAny <- optSectionDefault' Forbidden "any" authorizationSpec "Permission for any tsigkey interaction"
-  pure TSIGKeyPerms{..}
-
-permSetSpec :: ValueSpec (PermSet Lookup)
-permSetSpec = sectionsSpec "permset-spec" $ do
-    psVersionsPerms <- optSectionDefault' (Authorized ()) "versions" authorizationSpec "Permission for (undocumented) `GET /api`. Allowed by default."
-    psServersPerms <- optSectionDefault' serversForbidden "servers" serverPermsSpec "Permission for `/servers` endpoints. All forbidden by default."
-    psOurZonePerms <- optSectionDefault' zonesForbidden "zones" zonePermsSpec "Permission for `/servers/:server_id/zones` endpoints. All forbidden by default."
-    psTSIGKeyPerms <- optSectionDefault' tsigkeyForbidden "tsigkeys" tsigkeyPermsSpec "Permissions for `/servers/:server_id/tsigkeys` endpoints. All forbidden by default."
-    pure PermSet{..}
+auth''spec :: ValueSpec [Authorization'']
+auth''spec = (pure <$> permit) <!> oneOrList
+    (sectionsSpec "server-authorization-spec" $ do
+      authServer <- reqSection' "server" textSpec "Matching this server. Defaults to localhost"
+      authPattern <- pure ()
+      authToken <- pure ()
+      pure Authorization{..})
   where
-    tsigkeyForbidden = TSIGKeyPerms Forbidden
-    serversForbidden = ServerPerms Forbidden Forbidden Forbidden Forbidden Forbidden
-    zonesForbidden = ZonePerms [] (Lookup []) Forbidden Forbidden
+    permit = Authorization "localhost" () () <$ atomSpec "permit"
 
-metadataPermsSpec :: ValueSpec MetadataPerms
-metadataPermsSpec = sectionsSpec "metadata-perms-spec" $ do
-  mdAny <- optSectionDefault' Forbidden "any" authorizationSpec "Permission for any metadata interaction"
-  pure MetadataPerms{..}
+anyDomPat :: DomPat
+anyDomPat = DomPat [DomGlobStar]
 
-cryptokeyPermsSpec :: ValueSpec CryptokeyPerms
-cryptokeyPermsSpec = sectionsSpec "cryptokey-perms-spec" $ do
-  cpAny <- optSectionDefault' Forbidden "any" authorizationSpec "Permission for any cryptokey interaction"
-  pure CryptokeyPerms{..}
-
-
-perZonePermsSpec :: SectionsSpec PerZonePerms
-perZonePermsSpec = do
-  pzpDomainPerms <- optSectionDefault' [] "domains"
-                                         (listSpec absRecordPermSpec)
-                                         "List of editable domains"
-  pzpViewZone <- optSectionDefault' Forbidden "view" (Authorized <$> filteredPermissionSpec) "Permission to view this zone, filtered or unfiltered. When unfiltered, this user can see all records of a zone in the GET endpoint. When filtered, the result will be filtered to only include RRSets the user can also modify. Forbidden by default."
-  pzpDeleteZone <- optSectionDefault' Forbidden "delete" authorizationSpec "Permission to delete this zone. Forbidden by default."
-  pzpUpdateZone <- optSectionDefault' Forbidden "update" authorizationSpec "Permission to update this zone. Forbidden by default."
-  pzpTriggerAxfr <- optSectionDefault' Forbidden "triggerAxfr" authorizationSpec "Permission to trigger a zone transfer on a slave. Forbidden by default."
-  pzpNotifySlaves <- optSectionDefault' Forbidden "notifySlaves" authorizationSpec "Permission to notify slaves. Forbidden by default."
-  pzpGetZoneAxfr <- optSectionDefault' Forbidden "getAxfr" authorizationSpec "Permission to obtain a zone transfer in AXFR format. Forbidden by default."
-  pzpRectifyZone <- optSectionDefault' Forbidden "rectifyZone" authorizationSpec "Permission to rectify the zone. Forbidden by default."
-  pzpMetadataPerms <- optSectionDefault' metadataForbidden "metadataPerms" metadataPermsSpec "Permissions for metadata access. All forbidden by default."
-  pzpCryptokeysPerms <- optSectionDefault' cryptokeyForbidden "cryptokeyPerms" cryptokeyPermsSpec "Permissions for cryptokeys access. All forbidden by default."
-
-  pure PerZonePerms{..}
-
+permZoneListSpec :: ValueSpec [Authorization Filtered DomPat]
+permZoneListSpec = (pure <$> permit) <!> oneOrList
+    (sectionsSpec "perm-zone-list-spec" $ do
+        authServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
+        authPattern <- optSectionDefault' anyDomPat "pattern" domPatSpec "Matching this zone. If left empty, will match any zone"
+        authToken <- reqSection' "type" filteredSpec "Whether or not records will be filtered using zoneUpdateRecords permissions"
+        pure Authorization{..})
   where
-    metadataForbidden = MetadataPerms Forbidden
-    cryptokeyForbidden = CryptokeyPerms Forbidden
+    permit = Authorization "localhost" anyDomPat Unfiltered <$ atomSpec "permit"
 
-zoneMapItemSpec :: ValueSpec (ZoneId, PerZonePerms)
-zoneMapItemSpec = sectionsSpec "zone" $ do
-  name <- reqSection' "zone" zoneIdSpec "The name of the zone"
-  perms <- perZonePermsSpec
-  pure (name, perms)
+permZoneViewSpec :: ValueSpec [Authorization Filtered DomPat]
+permZoneViewSpec = (pure <$> permit) <!> oneOrList
+    (sectionsSpec "perm-zone-view-spec" $ do
+        authServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
+        authPattern <- optSectionDefault' anyDomPat "zone" domPatSpec "Matching this zone. If left empty, will match any zone"
+        authToken <- reqSection' "type" filteredSpec "Whether or not records in all zones will be filtered using zoneUpdateRecords permissions. If a zone has no visible records, it will be omitted entirely"
+        pure Authorization{..})
+  where
+    permit = Authorization "localhost" anyDomPat Unfiltered <$ atomSpec "permit"
 
-recordTypeSpec :: ValueSpec AllowSpec
-recordTypeSpec = MayModifyAnyRecordType <$ atomSpec "any"
-             <!> MayModifyRecordType <$> listSpec recordAtomSpec
+permZoneSpec :: ValueSpec [Authorization' DomPat]
+permZoneSpec = (pure <$> permit) <!> oneOrList
+    (sectionsSpec "perm-zone-spec" $ do
+        authServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
+        authPattern <- optSectionDefault' anyDomPat "zone" domPatSpec "Matching this zone. If left empty, will match any zone"
+        authToken <- pure ()
+        pure Authorization{..})
+  where
+    permit = Authorization "localhost" anyDomPat () <$ atomSpec "permit"
 
-domainPatSpec :: ValueSpec DomainPattern
-domainPatSpec = customSpec "Absolute domain (with trailing dot). A leading wildcard like \"*.foo\" or \"*\" is allowed"
+domTyPatSpec :: SectionsSpec DomTyPat
+domTyPatSpec = do
+  domPat <- reqSection' "domain" domPatSpec "Matching any of these domains"
+  recTyPat <- reqSection' "types" recTyPatSpec "Matching any of these record types"
+  pure (domPat, recTyPat)
+
+permZoneUpdateRecordsSpec :: ValueSpec (Authorization DomTyPat DomPat)
+permZoneUpdateRecordsSpec = sectionsSpec "perm-zone-update-records-spec" $ do
+  authServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
+  authPattern <- optSectionDefault' anyDomPat "zone" domPatSpec "Matching this zone. If left empty, will match any zone"
+  authToken <- domTyPatSpec
+  pure Authorization{..}
+
+permsSpec :: ValueSpec Perms
+permsSpec = sectionsSpec "perms-spec" $ do
+  permApiVersions <- maybeToList <$> optSection' "apiVersions" simpleAuthSpec "Permission for listing API versions"
+  permServerList <- optSectionDefault' [] "serverList" auth''spec "Permission for listing servers"
+  permServerView <- optSectionDefault' [] "serverView" auth''spec "Permission for viewing a server"
+  permSearch <- optSectionDefault' [] "search" auth''spec "Permission for searching"
+  permFlushCache <- optSectionDefault' [] "flushCache" auth''spec "Permission for flushing the cache"
+  permStatistics <- optSectionDefault' [] "statistics" auth''spec "Permission for getting statistics"
+  permZoneCreate <- optSectionDefault' [] "zoneCreate" auth''spec "Permission for creating a zone"
+  permZoneList <- optSectionDefault' [] "zoneList" permZoneListSpec "Permission for listing zones"
+  permZoneView <- optSectionDefault' [] "zoneView" permZoneViewSpec "Permission for viewing a zone"
+  permZoneUpdate <- optSectionDefault' [] "zoneUpdate" permZoneSpec "Permission for updating a zone"
+  permZoneUpdateRecords <- optSectionDefault' [] "zoneUpdateRecords" (oneOrList permZoneUpdateRecordsSpec) "Permission for updating records in a zone"
+  permZoneDelete <- optSectionDefault' [] "zoneDelete" permZoneSpec "Permission for deleting a zone"
+  permZoneTriggerAxfr <- optSectionDefault' [] "zoneTriggerAxfr" permZoneSpec "Permission for triggering an AXFR"
+  permZoneGetAxfr <- optSectionDefault' [] "zoneGetAxfr" permZoneSpec "Permission for getting an AXFR"
+  permZoneNotifySlaves <- optSectionDefault' [] "zoneNotifySlaves" permZoneSpec "Permission for notifying slaves"
+  permZoneRectify <- optSectionDefault' [] "zoneRectify" permZoneSpec "Permission for rectifying a zone"
+  permZoneMetadata <- optSectionDefault' [] "zoneMetadata" permZoneSpec "Permission for manipulating a zones metadata"
+  permZoneCryptokeys <- optSectionDefault' [] "zoneCryptokeys" permZoneSpec "Permission for manipulating a zones cryptokeys"
+  permTSIGKeyList <- optSectionDefault' [] "tsigKeyList" auth''spec "Permission for listing TSIG keys"
+  permTSIGKeyCreate <- optSectionDefault' [] "tsigKeyCreate" auth''spec "Permission for creating a TSIG key"
+  permTSIGKeyView <- optSectionDefault' [] "tsigKeyView" auth''spec "Permission for viewing a TSIG key"
+  permTSIGKeyUpdate <- optSectionDefault' [] "tsigKeyUpdate" auth''spec "Permission for updating a TSIG key"
+  permTSIGKeyDelete <- optSectionDefault' [] "tsigKeyDelete" auth''spec "Permission for deleting a TSIG keys"
+
+  pure Perms{..}
+
+filteredSpec :: ValueSpec Filtered
+filteredSpec = Filtered <$ atomSpec "filtered"
+           <!> Unfiltered <$ atomSpec "unfiltered"
+
+recTyPatSpec :: ValueSpec RecTyPat
+recTyPatSpec = namedSpec "record-type-spec" $
+                 AnyRecordType <$ atomSpec "any"
+             <!> AnyOf <$> oneOrList recordAtomSpec
+
+domPatSpec :: ValueSpec DomPat
+domPatSpec = customSpec "Absolute domain (with trailing dot). A leading wildcard like \"*.foo\" or \"*\" is allowed"
                             textSpec
-                            (first T.pack . parseDomainPattern)
+                            (first T.pack . parseDomPat)
 
 zoneIdSpec :: ValueSpec ZoneId
 zoneIdSpec = ZoneId <$> customSpec "Zone name (with trailing dot)."
                         textSpec
-                        (first T.pack . parseAbsDomain)
+                        (first T.pack . parseAbsDomainLabels)
 
 recordAtomSpec :: ValueSpec RecordType
 recordAtomSpec =    A          <$ atomSpec "A"
@@ -201,83 +207,37 @@ recordAtomSpec =    A          <$ atomSpec "A"
 hostPrefSpec :: ValueSpec HostPreference
 hostPrefSpec = fromString . T.unpack <$> textSpec
 
-configSpec :: ValueSpec ConfigNonValidated
+configSpec :: ValueSpec Config
 configSpec = sectionsSpec "top-level" $ do
-  cfgnvUpstreamApiBaseUrl <- reqSection "upstreamApiBaseUrl" "The base URL of the upstream PowerDNS API."
-  cfgnvUpstreamApiKey <- reqSection "upstreamApiKey" "The upstream X-API-Key secret"
-  cfgnvListenAddress <- reqSection' "listenAddress" hostPrefSpec "The IP address the proxy will bind on"
-  cfgnvListenPort <- reqSection "listenPort" "The TCP port the proxy will bind on"
-  cfgnvUsers <- reqSection' "users" (listSpec userSpec) "Configured users"
-  pure ConfigNonValidated{..}
+  cfgUpstreamApiBaseUrl <- reqSection "upstreamApiBaseUrl" "The base URL of the upstream PowerDNS API."
+  cfgUpstreamApiKey <- reqSection "upstreamApiKey" "The upstream X-API-Key secret"
+  cfgListenAddress <- reqSection' "listenAddress" hostPrefSpec "The IP address the proxy will bind on"
+  cfgListenPort <- reqSection "listenPort" "The TCP port the proxy will bind on"
+  cfgUsers <- reqSection' "users" (listSpec userSpec) "API users"
+  pure Config{..}
 
-zonePermsSpec :: ValueSpec (ZonePerms Lookup)
-zonePermsSpec = sectionsSpec "zones-spec" $ do
-  zpZones <- Lookup <$> optSectionDefault' []
-                                                "zones"
-                                                (listSpec zoneMapItemSpec)
-                                                "Zone-specific permissions"
-
-  zpUnrestrictedDomainPerms <- optSectionDefault' []
-                                       "domains"
-                                       (listSpec absRecordPermSpec)
-                                      "Global domain permissions"
-  zpCreateZone <- optSectionDefault' Forbidden "createZone" authorizationSpec "Permission to create zones. Forbidden by default."
-  zpListZones <- optSectionDefault' Forbidden "listZones" (Authorized <$> filteredPermissionSpec) "Permission to list zones, filtered or unfiltered. When unfiltered, this user can see all zones including all RRSets. When filtered, the result will be filtered to only include zones the user has any domain permissions on, and then each zone is filtered to include only those RRSets."
-  pure ZonePerms{..}
-
-userSpec :: ValueSpec UserNonValidated
+userSpec :: ValueSpec (Username, User)
 userSpec = sectionsSpec "user-spec" $ do
-  unvName <- Username <$> reqSection "name" "The name of the API user"
-  unvPassHash <- reqSection' "passHash"
+  uName <- Username <$> reqSection "name" "The name of the API user"
+  uPassHash <- reqSection' "passHash"
                             (T.encodeUtf8 <$> textSpec)
                             "Argon2id hash of the secret as a string in the original reference format, e.g.: $argon2id$v=19$m=65536,t=3,p=2$c29tZXNhbHQ$RdescudvJCsgt3ub+b+dWRWJTmaaJObG"
-  unvPerms <- reqSection' "permissions" permSetSpec "Permissions for this user"
+  uPerms <- reqSection' "permissions" permsSpec "Permissions for this user"
 
-  pure UserNonValidated{..}
+  pure (uName, User{..})
 
 loadConfig :: MonadIO m => FilePath -> m Config
 loadConfig path = liftIO $ do
   cfg <- loadValueFromFile configSpec path
   validate cfg
+  pure cfg
 
 configHelp :: String
 configHelp = Pretty.render (generateDocs configSpec)
 
-validate :: ConfigNonValidated -> IO Config
+validate :: Config -> IO ()
 validate cfg = do
   validateUniqueUsers cfg
-  users <- traverse validateUser (cfgnvUsers cfg)
-
-  pure Config{ cfgUpstreamApiBaseUrl = cfgnvUpstreamApiBaseUrl cfg
-             , cfgUpstreamApiKey = cfgnvUpstreamApiKey cfg
-             , cfgListenAddress = cfgnvListenAddress cfg
-             , cfgListenPort = cfgnvListenPort cfg
-             , cfgUsers = M.fromList ((uName &&& id) <$> users)
-             }
-
-validatePermSet :: PermSet Lookup -> IO (PermSet M.Map)
-validatePermSet ups = do
-  let zones = ups ^. #psOurZonePerms % #zpZones % to runLookup
-      dups = duplicates (fst <$> zones)
-
-  unless (null dups) $
-    fail ("Duplicate zones: " <> T.unpack (T.intercalate ", " (getZone <$> dups)))
-
-  for_ zones $ \(ZoneId zone, perms) -> do
-    for_ (pzpDomainPerms perms) $ \(pat, _allow) -> do
-        let pat' = pprDomainPattern pat
-        unless (zone `T.isSuffixOf` pat') $
-            fail ("Pattern is out of zone " <> T.unpack (quoted zone) <> ": " <> T.unpack pat')
-
-  pure (ups & #psOurZonePerms % #zpZones .~ M.fromList zones)
-
-validateUser :: UserNonValidated -> IO User
-validateUser unv = do
-  perms <- validatePermSet (unvPerms unv)
-  pure User{ uName = unvName unv
-           , uPassHash = unvPassHash unv
-           , uPerms = perms }
-
 
 duplicates :: Ord a => [a] -> [a]
 duplicates = go mempty
@@ -290,8 +250,8 @@ duplicates = go mempty
                    = go (S.insert x seen) xs
 
 
-validateUniqueUsers :: ConfigNonValidated -> IO ()
+validateUniqueUsers :: Config -> IO ()
 validateUniqueUsers cfg = do
-  let dups = duplicates (unvName <$> cfgnvUsers cfg)
+  let dups = duplicates (fst <$> cfgUsers cfg)
   unless (null dups) $
     fail ("Duplicate users: " <> T.unpack (T.intercalate ", " (getUsername <$> dups)))

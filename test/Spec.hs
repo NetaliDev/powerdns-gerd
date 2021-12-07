@@ -8,7 +8,9 @@ import           Data.Foldable (for_)
 import           Data.List (groupBy, sortOn)
 import           Data.Maybe (catMaybes, isJust)
 import           System.Environment (lookupEnv)
-import           System.IO (BufferMode(..), hSetBuffering, stderr, stdout)
+import           System.Exit (exitFailure)
+import           System.IO (BufferMode(..), hPutStrLn, hSetBuffering, stderr,
+                            stdout)
 
 import           Data.CallStack
 import qualified Data.Text as T
@@ -25,7 +27,8 @@ import           Test.Tasty.HUnit (testCase)
 
 import           Control.Monad.Logger (defaultOutput, runLoggingT)
 import           PowerDNS.Client
-import           UnliftIO (IOMode(AppendMode), bracket, hClose, openFile)
+import           UnliftIO (IOMode(AppendMode), SomeException, bracket, catch,
+                           displayException, hClose, openFile)
 import           UnliftIO.STM (newTVarIO)
 
 data TestEnv = TestEnv
@@ -264,13 +267,18 @@ tests te = testGroup "PowerDNS tests"
     , zoneTests te
     ]
 
+configErr :: SomeException -> IO a
+configErr e = do
+  hPutStrLn stderr (displayException e)
+  exitFailure
+
 main :: IO ()
 main = do
   hSetBuffering stdout LineBuffering
   hSetBuffering stderr LineBuffering
   isCI <- isJust <$> lookupEnv "IN_GITLAB_CI"
 
-  cfg <- loadConfig "./test/powerdns-gerd.test.conf"
+  cfg <- loadConfig "./test/powerdns-gerd.test.conf" `catch` configErr
 
 
 

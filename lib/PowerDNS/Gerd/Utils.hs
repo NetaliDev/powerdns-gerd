@@ -11,10 +11,8 @@ module PowerDNS.Gerd.Utils
   , hush
   , parseAbsDomain
   , parseAbsDomainLabels
-  , parseDomainPattern
+  , parseDomPat
   , logFilter
-  , pprElabDomainPerm
-  , pprDomainPattern
   , quoted
   , ourVersion
   , runLog
@@ -63,19 +61,19 @@ parseAbsDomain = ATT.parseOnly (absDomainP <* ATT.endOfInput)
 parseAbsDomainLabels :: T.Text -> Either String DomainLabels
 parseAbsDomainLabels = ATT.parseOnly (DomainLabels <$> relDomainLabelsP <* ATT.string "." <* ATT.endOfInput)
 
-parseDomainPattern :: T.Text -> Either String DomainPattern
-parseDomainPattern = ATT.parseOnly (domainPatternP <* ATT.endOfInput)
+parseDomPat :: T.Text -> Either String DomPat
+parseDomPat = ATT.parseOnly (domPatP <* ATT.endOfInput)
 
-domainPatternP :: ATT.Parser DomainPattern
-domainPatternP = DomainPattern <$> ((:) <$> domainLabelPatternInitP <*> many domainLabelPatternP)
+domPatP :: ATT.Parser DomPat
+domPatP = DomPat <$> ((:) <$> domLabelPatInitP <*> many domLabelPatP)
 
-domainLabelPatternInitP :: ATT.Parser DomainLabelPattern
-domainLabelPatternInitP = asum [ DomLiteral <$> label <* ATT.string "."
+domLabelPatInitP :: ATT.Parser DomLabelPat
+domLabelPatInitP = asum [ DomLiteral <$> label <* ATT.string "."
                                , DomGlobStar <$ ATT.string "**."
                                , DomGlob <$ ATT.string "*." ]
 
-domainLabelPatternP :: ATT.Parser DomainLabelPattern
-domainLabelPatternP = asum [ DomLiteral <$> label <* ATT.string "."
+domLabelPatP :: ATT.Parser DomLabelPat
+domLabelPatP = asum [ DomLiteral <$> label <* ATT.string "."
                            , DomGlob <$ ATT.string "*." ]
 
 absDomainP :: ATT.Parser T.Text
@@ -123,10 +121,10 @@ logFilter logVerbosity
     verbosity = levels !! (logVerbosity + 1)
     levels = LevelError : LevelWarn : LevelInfo : repeat LevelDebug
 
-pprDomainPattern :: DomainPattern -> T.Text
-pprDomainPattern (DomainPattern patterns) = mconcat (pprLabelPattern <$> patterns)
+pprDomPat :: DomPat -> T.Text
+pprDomPat (DomPat patterns) = mconcat (pprLabelPattern <$> patterns)
 
-pprLabelPattern :: DomainLabelPattern -> T.Text
+pprLabelPattern :: DomLabelPat -> T.Text
 pprLabelPattern (DomLiteral t) = t <> "."
 pprLabelPattern DomGlob        = "*."
 pprLabelPattern DomGlobStar    = "**."
@@ -134,16 +132,6 @@ pprLabelPattern DomGlobStar    = "**."
 
 showT :: Show a => a -> T.Text
 showT = T.pack . show
-
-pprAllowed :: AllowSpec -> T.Text
-pprAllowed MayModifyAnyRecordType   = "any record type"
-pprAllowed (MayModifyRecordType xs) = "record types: " <> showT xs
-
-pprElabDomainPerm :: ElabDomainPerm -> T.Text
-pprElabDomainPerm (ElabDomainPerm zone pat allowed)
-    = "pattern " <> quoted (pprDomainPattern pat) <> zoneDescr <> " for " <> pprAllowed allowed
-  where
-    zoneDescr = maybe "" (\(ZoneId z) -> " inside zone " <> quoted z) zone
 
 quoted :: T.Text -> T.Text
 quoted x = "\"" <> x <> "\""

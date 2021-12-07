@@ -1,7 +1,6 @@
 module PowerDNS.Gerd.User
   ( User(..)
   , Username(..)
-  , UserNonValidated(..)
   , authenticate
   , module PowerDNS.Gerd.User.Optics
   , module PowerDNS.Gerd.User.Types
@@ -13,14 +12,13 @@ import qualified Data.ByteString.Char8 as B8
 import qualified Data.Text as T
 import           Libsodium
 
-import qualified Data.Map as M
 import           PowerDNS.Gerd.User.Optics
 import           PowerDNS.Gerd.User.Types
 
-authenticate :: M.Map Username User -> T.Text -> B8.ByteString -> IO (Maybe User)
+authenticate :: [(Username, User)] -> T.Text -> B8.ByteString -> IO (Maybe User)
 authenticate db name pass = maybe (pure Nothing)
                                   verify
-                                  (M.lookup (Username name) db)
+                                  (lookup (Username name) db)
   where
     verify :: User -> IO (Maybe User)
     verify ac = do

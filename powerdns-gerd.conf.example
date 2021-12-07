@@ -9,17 +9,24 @@ users:
     -- Permissions to update records, filtered by a name and type pattern. This allows for modification
     -- irrespective of what zone the domain is in.
     -- https://doc.powerdns.com/authoritative/http-api/zone.html#patch--servers-server_id-zones-zone_id
-    domains:
+    records:
       * { name: "2.example.com.", types: [A, AAAA] }
       * { name: "3.example.com.", types: [MX] }
 
+    versions: permit
+    servers:
+      any: permit
+    tsigkeys:
+      any: permit
+
     zones:
-      * zone: "example.com."
+      perZone:
+        * zone: "example.com."
 
         -- Permissions to update records under this zone, filtered by a name and type pattern.
         -- If left empty or not specified, this is forbidden.
         -- https://doc.powerdns.com/authoritative/http-api/zone.html#patch--servers-server_id-zones-zone_id
-        domains:
+        records:
           * { name: "1.example.com.", types: [A, AAAA] }
           * { name: "foo.example.com.", types: any }
 
@@ -50,3 +57,9 @@ users:
         -- https://doc.powerdns.com/authoritative/http-api/zone.html#put--servers-server_id-zones-zone_id-rectify
         -- If left empty or not specified, this is forbidden.
         rectifyZone: permit
+
+        metadataPerms:
+          any: permit
+
+        cryptokeyPerms:
+          any: permit

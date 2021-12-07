@@ -8,28 +8,24 @@ module PowerDNS.Gerd.Permission.Types
   ( ZoneId(..)
   , DomainKind(..)
   , Domain(..)
-  , RecordTypeSpec(..)
-  , AllowSpec(..)
-  , PermissionList
-  , ElabDomainPerm(..)
-  , FilteredPermission(..)
-  , PerZonePerms(..)
-  , PermSet(..)
-  , Lookup(..)
+  , Perms(..)
   , Authorization(..)
-  , ElabZonePerm(..)
-  , DomainLabelPattern(..)
-  , DomainPattern(..)
+  , Authorization'
+  , Authorization''
+  , SimpleAuthorization(..)
+
+  -- * Pattern types
+  , DomLabelPat(..)
+  , DomTyPat
+  , DomPat(..)
+  , RecTyPat(..)
+
+  -- * Utilities
   , DomainLabels(..)
-  , ServerPerms(..)
-  , CryptokeyPerms(..)
-  , TSIGKeyPerms(..)
-  , MetadataPerms(..)
-  , ZonePerms(..)
+  , Filtered(..)
   )
 where
 
-import qualified Data.Map as M
 import qualified Data.Text as T
 import           PowerDNS.API (RecordType)
 
@@ -43,114 +39,71 @@ instance Eq (Domain k) where
   Domain x == Domain y = T.toLower x == T.toLower y
 
 newtype ZoneId = ZoneId
-  { getZone :: T.Text
+  { getZone :: DomainLabels
   } deriving (Eq, Ord, Show)
 
 newtype DomainLabels = DomainLabels
   { getDomainLabels :: [T.Text]
-  }
+  } deriving (Eq, Ord, Show)
 
-newtype DomainPattern = DomainPattern
-  { getDomainPattern :: [DomainLabelPattern]
-  } deriving Show
+newtype DomPat = DomPat
+  { getDomainPattern :: [DomLabelPat]
+  } deriving (Eq, Ord, Show)
 
-data DomainLabelPattern
+data DomLabelPat
   = DomLiteral T.Text
   | DomGlob -- ^ Represents a single asterisk glob matching any arbitrary domain at a given level.
   | DomGlobStar -- ^ Represents a double asterisk matching any arbitrary subdomain at a given level.
-  deriving Show
+  deriving (Eq, Ord, Show)
 
-data RecordTypeSpec
+data RecTyPat
   = AnyRecordType
   | AnyOf [RecordType]
-  deriving Show
+  deriving (Eq, Ord, Show)
 
-data FilteredPermission = Filtered | Unfiltered
-  deriving Show
+type DomTyPat = (DomPat, RecTyPat)
 
-deriving instance Show (PermSet Lookup)
-deriving instance Show (PermSet M.Map)
-deriving instance Show (ZonePerms Lookup)
-deriving instance Show (ZonePerms M.Map)
-deriving instance (Show k, Show v) => Show (Lookup k v)
+data Filtered = Filtered | Unfiltered
+  deriving (Eq, Ord, Show)
 
-newtype Lookup k v = Lookup { runLookup :: [(k, v)] }
+data Perms = Perms
+  { permApiVersions       :: [SimpleAuthorization]
+  , permServerList        :: [Authorization'']
+  , permServerView        :: [Authorization'']
+  , permSearch            :: [Authorization'']
+  , permFlushCache        :: [Authorization'']
+  , permStatistics        :: [Authorization'']
+  , permZoneCreate        :: [Authorization'']
+  , permZoneList          :: [Authorization Filtered DomPat]
+  , permZoneView          :: [Authorization Filtered DomPat]
+  , permZoneUpdate        :: [Authorization' DomPat]
+  , permZoneUpdateRecords :: [Authorization DomTyPat DomPat]
+  , permZoneDelete        :: [Authorization' DomPat]
+  , permZoneTriggerAxfr   :: [Authorization' DomPat]
+  , permZoneGetAxfr       :: [Authorization' DomPat]
+  , permZoneNotifySlaves  :: [Authorization' DomPat]
+  , permZoneRectify       :: [Authorization' DomPat]
+  , permZoneMetadata      :: [Authorization' DomPat]
+  , permZoneCryptokeys    :: [Authorization' DomPat]
+  , permTSIGKeyList       :: [Authorization'']
+  , permTSIGKeyCreate     :: [Authorization'']
+  , permTSIGKeyView       :: [Authorization'']
+  , permTSIGKeyUpdate     :: [Authorization'']
+  , permTSIGKeyDelete     :: [Authorization'']
+  } deriving (Eq, Ord, Show)
 
--- | Parameterized over a lookup type. Either this is `Lookup` or `Map`.
--- See 'UnvalidatedPermSet' and 'ValidatedPermSet'.
-data PermSet (c :: * -> * -> *) = PermSet
-  { psVersionsPerms :: Authorization ()
-  , psServersPerms :: ServerPerms
-  , psOurZonePerms :: ZonePerms c
-  , psTSIGKeyPerms :: TSIGKeyPerms
-  }
+-- | A simple convenient token to show we are authorized to do this. No patterns or tokens.
+data SimpleAuthorization = SimpleAuthorization
+  deriving (Eq, Ord, Show)
 
--- | Permissions pertaining to the @/servers@ endpoints
-data ServerPerms = ServerPerms
-  { spListServers :: Authorization ()
-  , spGetServer :: Authorization ()
-  , spSearch :: Authorization ()
-  , spFlushCache :: Authorization ()
-  , spStatistics :: Authorization ()
-  } deriving Show
+type Authorization' = Authorization ()
+type Authorization'' = Authorization () ()
 
--- | Permissions pertaining to the @/zones@ endpoints
-data ZonePerms (c :: * -> * -> *) = ZonePerms
-  { zpUnrestrictedDomainPerms :: PermissionList
-  , zpZones :: c ZoneId PerZonePerms
-  , zpCreateZone :: Authorization ()
-  , zpListZones :: Authorization FilteredPermission
-  }
-
--- | Permissions pertaining to the @/zones/:zone_id@ endpoints
-data PerZonePerms = PerZonePerms
-  { pzpViewZone :: Authorization FilteredPermission
-  , pzpDomainPerms :: PermissionList
-  , pzpUpdateZone :: Authorization ()
-  , pzpDeleteZone :: Authorization ()
-  , pzpTriggerAxfr :: Authorization ()
-  , pzpNotifySlaves :: Authorization ()
-  , pzpGetZoneAxfr :: Authorization ()
-  , pzpRectifyZone :: Authorization ()
-
-  -- | Permissions pertaining to the @/zones/:zoneid/metadata@ endpoints
-  , pzpMetadataPerms :: MetadataPerms
-  -- | Permissions pertaining to the @/zones/:zoneid/cryptokeys@ endpoints
-  , pzpCryptokeysPerms :: CryptokeyPerms
-  } deriving Show
-
--- | Permissions pertaining to the @/zones/:zoneid/cryptokeys@ endpoints
-data CryptokeyPerms = CryptokeyPerms
-  { cpAny :: Authorization () -- ^ Whether or not any cryptokey operation is allowed or not.
-  } deriving Show
-
--- | Permissions pertaining to the @/zones/:zoneid/metadata@ endpoints
-data MetadataPerms = MetadataPerms
-  { mdAny :: Authorization () -- ^ Whether or not any cryptokey operation is allowed or not.
-  } deriving Show
-
--- | Permissions pertaining to the @/cryptokeys/@ endpoints
-data TSIGKeyPerms = TSIGKeyPerms
-  { tspAny :: Authorization () -- ^ Whether or not any TSIGKey operation is allowed or not.
-  } deriving Show
-
-type PermissionList = [(DomainPattern, AllowSpec)]
-
-data Authorization a = Forbidden | Authorized a
-  deriving (Eq, Ord, Show, Functor)
-
-data ElabZonePerm = ElabZonePerm
-  { ezZone :: ZoneId
-  , ezView :: Authorization FilteredPermission
-  }
-
--- | A domain permission that might be constrained to a particular zone
-data ElabDomainPerm = ElabDomainPerm
-  { epZone :: Maybe ZoneId
-  , epDomainPat :: DomainPattern
-  , epAllowed :: AllowSpec
-  } deriving Show
-
-data AllowSpec = MayModifyRecordType [RecordType]
-               | MayModifyAnyRecordType
-               deriving (Eq, Ord, Show)
+-- | A type of authorization. The 'tok' type variable designates what kind of token
+-- we get when authorized, and 'pat' designates some kind of pattern that must match
+-- for the authorization to work.
+data Authorization tok pat = Authorization
+  { authServer  :: T.Text -- ^ Server must match
+  , authPattern :: pat    -- ^ Specified pattern must match
+  , authToken   :: tok    -- ^ When everything matched, provide this as context.
+  } deriving (Eq, Ord, Show, Functor)
