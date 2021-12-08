@@ -1,10 +1,5 @@
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeOperators     #-}
 module PowerDNS.Gerd.Server.Endpoints
   ( server
   )
@@ -27,6 +22,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
 
+import           GHC.TypeLits (KnownSymbol)
 import           Network.HTTP.Types (Status(Status))
 import qualified PowerDNS.API as PDNS
 import qualified PowerDNS.Client as PDNS
@@ -38,7 +34,6 @@ import           Servant.Client (ClientError(FailureResponse), ClientM,
 import           Servant.Server (ServerError(ServerError))
 import           Servant.Server.Generic (genericServerT)
 import           UnliftIO (throwIO)
-import GHC.TypeLits (KnownSymbol)
 
 server :: GuardedAPI AsGerd
 server = GuardedAPI

@@ -1,10 +1,6 @@
 {-# LANGUAGE ApplicativeDo       #-}
-{-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE OverloadedLabels    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE KindSignatures      #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 module PowerDNS.Gerd.Config
   ( Config(..)
   , loadConfig

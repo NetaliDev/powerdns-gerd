@@ -1,7 +1,4 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications  #-}
 module PowerDNS.Gerd.Permission
   ( module PowerDNS.Gerd.Permission.Types
 

@@ -1,12 +1,8 @@
-{-# LANGUAGE DataKinds          #-}
-{-# LANGUAGE DeriveFunctor      #-}
-{-# LANGUAGE FlexibleInstances  #-}
-{-# LANGUAGE KindSignatures     #-}
-{-# LANGUAGE OverloadedStrings  #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE KindSignatures      #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeOperators       #-}
 module PowerDNS.Gerd.Permission.Types
   ( ZoneId(..)
   , DomainKind(..)
@@ -32,8 +28,8 @@ module PowerDNS.Gerd.Permission.Types
 where
 
 import           Data.Proxy (Proxy(..))
-import           GHC.TypeLits (KnownSymbol, symbolVal, Symbol)
 import qualified Data.Text as T
+import           GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import           PowerDNS.API (RecordType)
 
 data DomainKind = Absolute | Relative
@@ -168,4 +164,4 @@ data Authorization tok pat = Authorization
   { authServer  :: T.Text -- ^ Server must match
   , authPattern :: pat    -- ^ Specified pattern must match
   , authToken   :: tok    -- ^ When everything matched, provide this as context.
-  } deriving (Eq, Ord, Show, Functor)
+  } deriving (Eq, Ord, Show)

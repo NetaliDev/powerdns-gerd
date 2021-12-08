@@ -1,4 +1,3 @@
-{-# LANGUAGE DataKinds #-}
 module PowerDNS.Gerd.User.Types
   ( User(..)
   , Username(..)

@@ -1,10 +1,8 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TypeOperators       #-}
-{-# LANGUAGE PolyKinds           #-}
 module PowerDNS.Gerd.Server
   ( mkApp
   )
