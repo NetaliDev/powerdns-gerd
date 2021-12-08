@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE TypeOperators #-}
 module PowerDNS.Gerd.Server.Endpoints
   ( server
   )
@@ -126,11 +127,11 @@ authorizeZoneEndpoints user sel srv zone = do
   perms <- authorizeEndpoint user sel
   handleAuthResSome (matchingZone srv zone' perms)
 
-type PermSelector tok pat tag = Perms -> Tagged tag (Maybe [Authorization tok pat])
+type PermSelector tok pat tag = Perms -> Maybe [Authorization tok pat] `WithDocs` tag
 
 authorizeEndpoint :: KnownSymbol tag => User -> PermSelector tok pat tag -> GerdM [Authorization tok pat]
 authorizeEndpoint user sel = do
-  case unTagged (sel (uPerms user)) of
+  case withoutDocs (sel (uPerms user)) of
     Nothing -> do
       logWarnN ("No permission for: " <> describe sel)
       forbidden

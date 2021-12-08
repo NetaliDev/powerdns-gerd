@@ -140,7 +140,7 @@ loadDefaults def x =
         , permTSIGKeyDelete = go permTSIGKeyDelete
         }
   where
-    go s = Tagged (unTagged (s x) <|> unTagged (s def))
+    go s = WithDocs (withoutDocs (s x) <|> withoutDocs (s def))
 
 type CtxtList = AuthHandler Request User ': '[]
 ourContext :: TVar Config -> Context CtxtList

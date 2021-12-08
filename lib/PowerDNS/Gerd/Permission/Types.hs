@@ -6,6 +6,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 {-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE TypeOperators #-}
 module PowerDNS.Gerd.Permission.Types
   ( ZoneId(..)
   , DomainKind(..)
@@ -16,7 +17,7 @@ module PowerDNS.Gerd.Permission.Types
   , Authorization''
   , SimpleAuthorization(..)
   , describe
-  , Tagged(..)
+  , WithDocs(..)
 
   -- * Pattern types
   , DomLabelPat(..)
@@ -31,10 +32,9 @@ module PowerDNS.Gerd.Permission.Types
 where
 
 import           Data.Proxy (Proxy(..))
-import           GHC.TypeLits (KnownSymbol, symbolVal)
+import           GHC.TypeLits (KnownSymbol, symbolVal, Symbol)
 import qualified Data.Text as T
 import           PowerDNS.API (RecordType)
-import Servant.Server (Tagged(..))
 
 data DomainKind = Absolute | Relative
 
@@ -73,43 +73,45 @@ type DomTyPat = (DomPat, RecTyPat)
 data Filtered = Filtered | Unfiltered
   deriving (Eq, Ord, Show)
 
--- | Demote the type level Tagged symbol from a Perms Selector
-describe :: forall s a. KnownSymbol s => (Perms -> Tagged s a) -> T.Text
+newtype WithDocs b (s :: Symbol) = WithDocs { withoutDocs :: b }
+
+-- | Demote the type level WithDocs symbol from a Perms Selector
+describe :: forall s a. KnownSymbol s => (Perms -> WithDocs a s) -> T.Text
 describe _ = T.pack (symbolVal (Proxy :: Proxy s))
 
 data Perms = Perms
-  { permApiVersions       :: Tagged "list api versions" (Maybe [SimpleAuthorization])
+  { permApiVersions       :: Maybe [SimpleAuthorization] `WithDocs` "list api versions"
 
   -- Server wide
-  , permServerList        :: Tagged "list servers"  (Maybe [Authorization''])
-  , permServerView        :: Tagged "view a server" (Maybe [Authorization''])
-  , permSearch            :: Tagged "search"       (Maybe [Authorization''])
-  , permFlushCache        :: Tagged "flush cache"  (Maybe [Authorization''])
-  , permStatistics        :: Tagged "statistics"   (Maybe [Authorization''])
+  , permServerList        :: Maybe [Authorization''] `WithDocs` "list servers"
+  , permServerView        :: Maybe [Authorization''] `WithDocs` "view a server"
+  , permSearch            :: Maybe [Authorization''] `WithDocs` "search"
+  , permFlushCache        :: Maybe [Authorization''] `WithDocs` "flush cache"
+  , permStatistics        :: Maybe [Authorization''] `WithDocs` "statistics"
 
   -- Zone wide
-  , permZoneCreate        :: Tagged "create a zone" (Maybe [Authorization''])
-  , permZoneList          :: Tagged "list zones"    (Maybe [Authorization Filtered ()])
+  , permZoneCreate        :: Maybe [Authorization''] `WithDocs` "create a zone"
+  , permZoneList          :: Maybe [Authorization Filtered ()] `WithDocs` "list zones"
 
 
   -- Per zone
-  , permZoneView          :: Tagged "view a zone"   (Maybe [Authorization Filtered DomPat])
-  , permZoneUpdate        :: Tagged "update a zone" (Maybe [Authorization' DomPat])
-  , permZoneUpdateRecords :: Tagged "update a zones records" (Maybe [Authorization DomTyPat DomPat])
-  , permZoneDelete        :: Tagged "delete a zone" (Maybe [Authorization' DomPat])
-  , permZoneTriggerAxfr   :: Tagged "trigger a zone axfr" (Maybe [Authorization' DomPat])
-  , permZoneGetAxfr       :: Tagged "get a zone in axfr format" (Maybe [Authorization' DomPat])
-  , permZoneNotifySlaves  :: Tagged "notify slaves" (Maybe [Authorization' DomPat])
-  , permZoneRectify       :: Tagged "rectify a zone" (Maybe [Authorization' DomPat])
-  , permZoneMetadata      :: Tagged "manipulating a zones metadata" (Maybe [Authorization' DomPat])
-  , permZoneCryptokeys    :: Tagged "manipulating a zones cryptokeys" (Maybe [Authorization' DomPat])
+  , permZoneView          :: Maybe [Authorization Filtered DomPat] `WithDocs` "view a zone"
+  , permZoneUpdate        :: Maybe [Authorization' DomPat] `WithDocs` "update a zone"
+  , permZoneUpdateRecords :: Maybe [Authorization DomTyPat DomPat] `WithDocs` "update a zones records"
+  , permZoneDelete        :: Maybe [Authorization' DomPat] `WithDocs` "delete a zone"
+  , permZoneTriggerAxfr   :: Maybe [Authorization' DomPat] `WithDocs` "trigger a zone axfr"
+  , permZoneGetAxfr       :: Maybe [Authorization' DomPat] `WithDocs` "get a zone in axfr format"
+  , permZoneNotifySlaves  :: Maybe [Authorization' DomPat] `WithDocs` "notify slaves"
+  , permZoneRectify       :: Maybe [Authorization' DomPat] `WithDocs` "rectify a zone"
+  , permZoneMetadata      :: Maybe [Authorization' DomPat] `WithDocs` "manipulating a zones metadata"
+  , permZoneCryptokeys    :: Maybe [Authorization' DomPat] `WithDocs` "manipulating a zones cryptokeys"
 
   -- TSIG specific
-  , permTSIGKeyList       :: Tagged "list tsig keys" (Maybe [Authorization''])
-  , permTSIGKeyCreate     :: Tagged "create a tsig key" (Maybe [Authorization''])
-  , permTSIGKeyView       :: Tagged "view a tsig key" (Maybe [Authorization''])
-  , permTSIGKeyUpdate     :: Tagged "update a tsig key" (Maybe [Authorization''])
-  , permTSIGKeyDelete     :: Tagged "delete a tsig key" (Maybe [Authorization''])
+  , permTSIGKeyList       :: Maybe [Authorization''] `WithDocs` "list tsig keys"
+  , permTSIGKeyCreate     :: Maybe [Authorization''] `WithDocs` "create a tsig key"
+  , permTSIGKeyView       :: Maybe [Authorization''] `WithDocs` "view a tsig key"
+  , permTSIGKeyUpdate     :: Maybe [Authorization''] `WithDocs` "update a tsig key"
+  , permTSIGKeyDelete     :: Maybe [Authorization''] `WithDocs` "delete a tsig key"
   }
 
 -- | A simple convenient token to show we are authorized to do this. No patterns or tokens.
