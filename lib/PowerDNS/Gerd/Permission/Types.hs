@@ -4,22 +4,18 @@
 {-# LANGUAGE KindSignatures     #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeFamilyDependencies #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE PolyKinds #-}
 module PowerDNS.Gerd.Permission.Types
   ( ZoneId(..)
   , DomainKind(..)
   , Domain(..)
-  , PermsF(..)
-  , Perms
-  , DescrPerms
-  , Mode(..)
-  , Inner
+  , Perms(..)
   , Authorization(..)
   , Authorization'
   , Authorization''
   , SimpleAuthorization(..)
-  , permsDescr
+  , describe
   , Tagged(..)
 
   -- * Pattern types
@@ -34,8 +30,11 @@ module PowerDNS.Gerd.Permission.Types
   )
 where
 
+import           Data.Proxy (Proxy(..))
+import           GHC.TypeLits (KnownSymbol, symbolVal)
 import qualified Data.Text as T
 import           PowerDNS.API (RecordType)
+import Servant.Server (Tagged(..))
 
 data DomainKind = Absolute | Relative
 
@@ -74,80 +73,43 @@ type DomTyPat = (DomPat, RecTyPat)
 data Filtered = Filtered | Unfiltered
   deriving (Eq, Ord, Show)
 
-data Mode = Field | Descr
-type family Inner tag field = r | r -> tag field where
-  Inner Field f = Maybe f
-  Inner Descr f = Tagged f T.Text
+-- | Demote the type level Tagged symbol from a Perms Selector
+describe :: forall s a. KnownSymbol s => (Perms -> Tagged s a) -> T.Text
+describe _ = T.pack (symbolVal (Proxy :: Proxy s))
 
-data Tagged t a = Tagged { runTagged :: a }
-
-type Perms = PermsF Field
-type DescrPerms = PermsF Descr
-
-deriving instance Eq Perms
-deriving instance Ord Perms
-deriving instance Show Perms
-
-data PermsF f = PermsF
-  { permApiVersions       :: Inner f [SimpleAuthorization]
+data Perms = Perms
+  { permApiVersions       :: Tagged "list api versions" (Maybe [SimpleAuthorization])
 
   -- Server wide
-  , permServerList        :: Inner f [Authorization'']
-  , permServerView        :: Inner f [Authorization'']
-  , permSearch            :: Inner f [Authorization'']
-  , permFlushCache        :: Inner f [Authorization'']
-  , permStatistics        :: Inner f [Authorization'']
+  , permServerList        :: Tagged "list servers"  (Maybe [Authorization''])
+  , permServerView        :: Tagged "view a server" (Maybe [Authorization''])
+  , permSearch            :: Tagged "search"       (Maybe [Authorization''])
+  , permFlushCache        :: Tagged "flush cache"  (Maybe [Authorization''])
+  , permStatistics        :: Tagged "statistics"   (Maybe [Authorization''])
 
   -- Zone wide
-  , permZoneCreate        :: Inner f [Authorization'']
-  , permZoneList          :: Inner f [Authorization Filtered ()]
+  , permZoneCreate        :: Tagged "create a zone" (Maybe [Authorization''])
+  , permZoneList          :: Tagged "list zones"    (Maybe [Authorization Filtered ()])
 
 
   -- Per zone
-  , permZoneView          :: Inner f [Authorization Filtered DomPat]
-  , permZoneUpdate        :: Inner f [Authorization' DomPat]
-  , permZoneUpdateRecords :: Inner f [Authorization DomTyPat DomPat]
-  , permZoneDelete        :: Inner f [Authorization' DomPat]
-  , permZoneTriggerAxfr   :: Inner f [Authorization' DomPat]
-  , permZoneGetAxfr       :: Inner f [Authorization' DomPat]
-  , permZoneNotifySlaves  :: Inner f [Authorization' DomPat]
-  , permZoneRectify       :: Inner f [Authorization' DomPat]
-  , permZoneMetadata      :: Inner f [Authorization' DomPat]
-  , permZoneCryptokeys    :: Inner f [Authorization' DomPat]
+  , permZoneView          :: Tagged "view a zone"   (Maybe [Authorization Filtered DomPat])
+  , permZoneUpdate        :: Tagged "update a zone" (Maybe [Authorization' DomPat])
+  , permZoneUpdateRecords :: Tagged "update a zones records" (Maybe [Authorization DomTyPat DomPat])
+  , permZoneDelete        :: Tagged "delete a zone" (Maybe [Authorization' DomPat])
+  , permZoneTriggerAxfr   :: Tagged "trigger a zone axfr" (Maybe [Authorization' DomPat])
+  , permZoneGetAxfr       :: Tagged "get a zone in axfr format" (Maybe [Authorization' DomPat])
+  , permZoneNotifySlaves  :: Tagged "notify slaves" (Maybe [Authorization' DomPat])
+  , permZoneRectify       :: Tagged "rectify a zone" (Maybe [Authorization' DomPat])
+  , permZoneMetadata      :: Tagged "manipulating a zones metadata" (Maybe [Authorization' DomPat])
+  , permZoneCryptokeys    :: Tagged "manipulating a zones cryptokeys" (Maybe [Authorization' DomPat])
 
   -- TSIG specific
-  , permTSIGKeyList       :: Inner f [Authorization'']
-  , permTSIGKeyCreate     :: Inner f [Authorization'']
-  , permTSIGKeyView       :: Inner f [Authorization'']
-  , permTSIGKeyUpdate     :: Inner f [Authorization'']
-  , permTSIGKeyDelete     :: Inner f [Authorization'']
-  }
-
-permsDescr :: DescrPerms
-permsDescr = PermsF
-  { permApiVersions       = Tagged "listing API versions"
-  , permServerList        = Tagged "listing servers"
-  , permServerView        = Tagged "viewing servers"
-  , permSearch            = Tagged "searching"
-  , permFlushCache        = Tagged "flushing the cache"
-  , permStatistics        = Tagged "getting statistics"
-  , permZoneCreate        = Tagged "creating a zone"
-  , permZoneList          = Tagged "listing a zone"
-  , permZoneView          = Tagged "viewing a zone"
-  , permZoneUpdate        = Tagged "updating a zone"
-  , permZoneUpdateRecords = Tagged "updating records in a zone"
-  , permZoneDelete        = Tagged "deleting a zone"
-  , permZoneTriggerAxfr   = Tagged "triggering an AXFR"
-  , permZoneGetAxfr       = Tagged "getting an AXFR"
-  , permZoneNotifySlaves  = Tagged "notifying slaves"
-  , permZoneRectify       = Tagged "rectifying a zone"
-  , permZoneMetadata      = Tagged "manipulating a zones metadata"
-  , permZoneCryptokeys    = Tagged "manipulating a zones cryptokeys"
-  , permTSIGKeyList       = Tagged "listing tsig keys"
-  , permTSIGKeyCreate     = Tagged "creating a tsig key"
-  , permTSIGKeyView       = Tagged "viewing a tsig key"
-  , permTSIGKeyUpdate     = Tagged "updating a tsig key"
-  , permTSIGKeyDelete     = Tagged "deleting a tsig key"
+  , permTSIGKeyList       :: Tagged "list tsig keys" (Maybe [Authorization''])
+  , permTSIGKeyCreate     :: Tagged "create a tsig key" (Maybe [Authorization''])
+  , permTSIGKeyView       :: Tagged "view a tsig key" (Maybe [Authorization''])
+  , permTSIGKeyUpdate     :: Tagged "update a tsig key" (Maybe [Authorization''])
+  , permTSIGKeyDelete     :: Tagged "delete a tsig key" (Maybe [Authorization''])
   }
 
 -- | A simple convenient token to show we are authorized to do this. No patterns or tokens.

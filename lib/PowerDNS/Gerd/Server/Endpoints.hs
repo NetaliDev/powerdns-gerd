@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE PolyKinds #-}
 module PowerDNS.Gerd.Server.Endpoints
   ( server
   )
@@ -36,6 +37,7 @@ import           Servant.Client (ClientError(FailureResponse), ClientM,
 import           Servant.Server (ServerError(ServerError))
 import           Servant.Server.Generic (genericServerT)
 import           UnliftIO (throwIO)
+import GHC.TypeLits (KnownSymbol)
 
 server :: GuardedAPI AsGerd
 server = GuardedAPI
@@ -112,31 +114,31 @@ handleAuthResSome xs = do
   traverse_ (logDebugN . showT) xs
   pure (authToken <$> xs)
 
-authorizeZoneEndpoint :: Show tok => User -> PermSelector tok DomPat -> T.Text -> T.Text -> GerdM tok
+authorizeZoneEndpoint :: (KnownSymbol tag, Show tok) => User -> PermSelector tok DomPat tag -> T.Text -> T.Text -> GerdM tok
 authorizeZoneEndpoint user sel srv zone = do
   zone' <- parseZone zone
   perms <- authorizeEndpoint user sel
   handleAuthRes1 (matchingZone srv zone' perms)
 
-authorizeZoneEndpoints :: Show tok => User -> PermSelector tok DomPat -> T.Text -> T.Text -> GerdM [tok]
+authorizeZoneEndpoints :: (KnownSymbol tag, Show tok) => User -> PermSelector tok DomPat tag -> T.Text -> T.Text -> GerdM [tok]
 authorizeZoneEndpoints user sel srv zone = do
   zone' <- parseZone zone
   perms <- authorizeEndpoint user sel
   handleAuthResSome (matchingZone srv zone' perms)
 
-type PermSelector tok pat = forall mode. PermsF mode -> Inner mode [Authorization tok pat]
+type PermSelector tok pat tag = Perms -> Tagged tag (Maybe [Authorization tok pat])
 
-authorizeEndpoint :: User -> PermSelector tok pat -> GerdM [Authorization tok pat]
+authorizeEndpoint :: KnownSymbol tag => User -> PermSelector tok pat tag -> GerdM [Authorization tok pat]
 authorizeEndpoint user sel = do
-  case sel (uPerms user) of
+  case unTagged (sel (uPerms user)) of
     Nothing -> do
-      logWarnN ("No permission for: " <> runTagged (sel permsDescr))
+      logWarnN ("No permission for: " <> describe sel)
       forbidden
     Just perms -> do
-      logDebugN ("Principal permissions found for: " <> runTagged (sel permsDescr))
+      logDebugN ("Principal permissions found for: " <> describe sel)
       pure perms
 
-authorizeSrvEndpoint :: Show tok => User -> PermSelector tok () -> T.Text -> GerdM tok
+authorizeSrvEndpoint :: (KnownSymbol tag, Show tok) => User -> PermSelector tok () tag -> T.Text -> GerdM tok
 authorizeSrvEndpoint user sel srv = do
   perms <- authorizeEndpoint user sel
   handleAuthRes1 (matchingSrv srv perms)

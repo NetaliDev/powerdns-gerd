@@ -18,7 +18,7 @@ data User = User
   { uName :: Username
   , uPassHash :: B8.ByteString
   , uPerms :: Perms
-  } deriving Show
+  }
 
 data MemLimit = MemMin
               | MemInteractive

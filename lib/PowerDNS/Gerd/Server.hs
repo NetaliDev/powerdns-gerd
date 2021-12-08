@@ -4,6 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE PolyKinds           #-}
 module PowerDNS.Gerd.Server
   ( mkApp
   )
@@ -114,30 +115,32 @@ authHandler cfg = mkAuthHandler handler
 
 loadDefaults :: Perms -> Perms -> Perms
 loadDefaults def x =
-  PermsF { permApiVersions = permApiVersions x <|> permApiVersions def
-        , permServerList = permServerList x <|> permServerList def
-        , permServerView = permServerView x <|> permServerView def
-        , permSearch = permSearch x <|> permSearch def
-        , permFlushCache = permFlushCache x <|> permFlushCache def
-        , permStatistics = permStatistics x <|> permStatistics def
-        , permZoneCreate = permZoneCreate x <|> permZoneCreate def
-        , permZoneList = permZoneList x <|> permZoneList def
-        , permZoneView = permZoneView x <|> permZoneView def
-        , permZoneUpdate = permZoneUpdate x <|> permZoneUpdate def
-        , permZoneUpdateRecords = permZoneUpdateRecords x <|> permZoneUpdateRecords def
-        , permZoneDelete = permZoneDelete x <|> permZoneDelete def
-        , permZoneTriggerAxfr = permZoneTriggerAxfr x <|> permZoneTriggerAxfr def
-        , permZoneGetAxfr = permZoneGetAxfr x <|> permZoneGetAxfr def
-        , permZoneNotifySlaves = permZoneNotifySlaves x <|> permZoneNotifySlaves def
-        , permZoneRectify = permZoneRectify x <|> permZoneRectify def
-        , permZoneMetadata = permZoneMetadata x <|> permZoneMetadata def
-        , permZoneCryptokeys = permZoneCryptokeys x <|> permZoneCryptokeys def
-        , permTSIGKeyList = permTSIGKeyList x <|> permTSIGKeyList def
-        , permTSIGKeyCreate = permTSIGKeyCreate x <|> permTSIGKeyCreate def
-        , permTSIGKeyView = permTSIGKeyView x <|> permTSIGKeyView def
-        , permTSIGKeyUpdate = permTSIGKeyUpdate x <|> permTSIGKeyUpdate def
-        , permTSIGKeyDelete = permTSIGKeyDelete x <|> permTSIGKeyDelete def
+  Perms { permApiVersions = go permApiVersions
+        , permServerList = go permServerList
+        , permServerView = go permServerView
+        , permSearch = go permSearch
+        , permFlushCache = go permFlushCache
+        , permStatistics = go permStatistics
+        , permZoneCreate = go permZoneCreate
+        , permZoneList = go permZoneList
+        , permZoneView = go permZoneView
+        , permZoneUpdate = go permZoneUpdate
+        , permZoneUpdateRecords = go permZoneUpdateRecords
+        , permZoneDelete = go permZoneDelete
+        , permZoneTriggerAxfr = go permZoneTriggerAxfr
+        , permZoneGetAxfr = go permZoneGetAxfr
+        , permZoneNotifySlaves = go permZoneNotifySlaves
+        , permZoneRectify = go permZoneRectify
+        , permZoneMetadata = go permZoneMetadata
+        , permZoneCryptokeys = go permZoneCryptokeys
+        , permTSIGKeyList = go permTSIGKeyList
+        , permTSIGKeyCreate = go permTSIGKeyCreate
+        , permTSIGKeyView = go permTSIGKeyView
+        , permTSIGKeyUpdate = go permTSIGKeyUpdate
+        , permTSIGKeyDelete = go permTSIGKeyDelete
         }
+  where
+    go s = Tagged (unTagged (s x) <|> unTagged (s def))
 
 type CtxtList = AuthHandler Request User ': '[]
 ourContext :: TVar Config -> Context CtxtList
