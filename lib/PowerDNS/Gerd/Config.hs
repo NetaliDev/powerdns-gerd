@@ -132,7 +132,7 @@ permsSpec = sectionsSpec "perms-spec" $ do
 
     pure Perms{..}
   where
-    annotationFor sel = "Permission for " <> describe sel
+    annotationFor sel = "Permission to " <> describe sel
 
 filteredSpec :: ValueSpec Filtered
 filteredSpec = Filtered <$ atomSpec "filtered"
