@@ -127,11 +127,11 @@ authorizeZoneEndpoints user sel srv zone = do
   perms <- authorizeEndpoint user sel
   handleAuthResSome (matchingZone srv zone' perms)
 
-type PermSelector tok pat tag = Perms -> Maybe [Authorization tok pat] `WithDocs` tag
+type PermSelector tok pat tag = Perms -> Maybe [Authorization tok pat] `WithDoc` tag
 
 authorizeEndpoint :: KnownSymbol tag => User -> PermSelector tok pat tag -> GerdM [Authorization tok pat]
 authorizeEndpoint user sel = do
-  case withoutDocs (sel (uPerms user)) of
+  case withoutDoc (sel (uPerms user)) of
     Nothing -> do
       logWarnN ("No permission for: " <> describe sel)
       forbidden

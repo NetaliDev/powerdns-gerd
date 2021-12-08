@@ -106,29 +106,29 @@ permZoneUpdateRecordsSpec = sectionsSpec "perm-zone-update-records-spec" $ do
 
 permsSpec :: ValueSpec Perms
 permsSpec = sectionsSpec "perms-spec" $ do
-    permApiVersions       <- WithDocs <$> optSection' "apiVersions" simpleAuthSpec (annotationFor permApiVersions)
-    permServerList        <- WithDocs <$> optSection' "serverList" auth''spec (annotationFor permServerList)
-    permServerView        <- WithDocs <$> optSection' "serverView" auth''spec (annotationFor permServerView)
-    permSearch            <- WithDocs <$> optSection' "search" auth''spec (annotationFor permSearch)
-    permFlushCache        <- WithDocs <$> optSection' "flushCache" auth''spec (annotationFor permFlushCache)
-    permStatistics        <- WithDocs <$> optSection' "statistics" auth''spec (annotationFor permStatistics)
-    permZoneCreate        <- WithDocs <$> optSection' "zoneCreate" auth''spec (annotationFor permZoneCreate)
-    permZoneList          <- WithDocs <$> optSection' "zoneList" permZoneListSpec (annotationFor permZoneList)
-    permZoneView          <- WithDocs <$> optSection' "zoneView" permZoneViewSpec (annotationFor permZoneView)
-    permZoneUpdate        <- WithDocs <$> optSection' "zoneUpdate" permZoneSpec (annotationFor permZoneUpdate)
-    permZoneUpdateRecords <- WithDocs <$> optSection' "zoneUpdateRecords" (oneOrList permZoneUpdateRecordsSpec) (annotationFor permZoneUpdateRecords)
-    permZoneDelete        <- WithDocs <$> optSection' "zoneDelete" permZoneSpec (annotationFor permZoneDelete)
-    permZoneTriggerAxfr   <- WithDocs <$> optSection' "zoneTriggerAxfr" permZoneSpec (annotationFor permZoneTriggerAxfr)
-    permZoneGetAxfr       <- WithDocs <$> optSection' "zoneGetAxfr" permZoneSpec (annotationFor permZoneGetAxfr)
-    permZoneNotifySlaves  <- WithDocs <$> optSection' "zoneNotifySlaves" permZoneSpec (annotationFor permZoneNotifySlaves)
-    permZoneRectify       <- WithDocs <$> optSection' "zoneRectify" permZoneSpec (annotationFor permZoneRectify)
-    permZoneMetadata      <- WithDocs <$> optSection' "zoneMetadata" permZoneSpec (annotationFor permZoneMetadata)
-    permZoneCryptokeys    <- WithDocs <$> optSection' "zoneCryptokeys" permZoneSpec (annotationFor permZoneCryptokeys)
-    permTSIGKeyList       <- WithDocs <$> optSection' "tsigKeyList" auth''spec (annotationFor permTSIGKeyList)
-    permTSIGKeyCreate     <- WithDocs <$> optSection' "tsigKeyCreate" auth''spec (annotationFor permTSIGKeyCreate)
-    permTSIGKeyView       <- WithDocs <$> optSection' "tsigKeyView" auth''spec (annotationFor permTSIGKeyView)
-    permTSIGKeyUpdate     <- WithDocs <$> optSection' "tsigKeyUpdate" auth''spec (annotationFor permTSIGKeyUpdate)
-    permTSIGKeyDelete     <- WithDocs <$> optSection' "tsigKeyDelete" auth''spec (annotationFor permTSIGKeyDelete)
+    permApiVersions       <- WithDoc <$> optSection' "apiVersions" simpleAuthSpec (annotationFor permApiVersions)
+    permServerList        <- WithDoc <$> optSection' "serverList" auth''spec (annotationFor permServerList)
+    permServerView        <- WithDoc <$> optSection' "serverView" auth''spec (annotationFor permServerView)
+    permSearch            <- WithDoc <$> optSection' "search" auth''spec (annotationFor permSearch)
+    permFlushCache        <- WithDoc <$> optSection' "flushCache" auth''spec (annotationFor permFlushCache)
+    permStatistics        <- WithDoc <$> optSection' "statistics" auth''spec (annotationFor permStatistics)
+    permZoneCreate        <- WithDoc <$> optSection' "zoneCreate" auth''spec (annotationFor permZoneCreate)
+    permZoneList          <- WithDoc <$> optSection' "zoneList" permZoneListSpec (annotationFor permZoneList)
+    permZoneView          <- WithDoc <$> optSection' "zoneView" permZoneViewSpec (annotationFor permZoneView)
+    permZoneUpdate        <- WithDoc <$> optSection' "zoneUpdate" permZoneSpec (annotationFor permZoneUpdate)
+    permZoneUpdateRecords <- WithDoc <$> optSection' "zoneUpdateRecords" (oneOrList permZoneUpdateRecordsSpec) (annotationFor permZoneUpdateRecords)
+    permZoneDelete        <- WithDoc <$> optSection' "zoneDelete" permZoneSpec (annotationFor permZoneDelete)
+    permZoneTriggerAxfr   <- WithDoc <$> optSection' "zoneTriggerAxfr" permZoneSpec (annotationFor permZoneTriggerAxfr)
+    permZoneGetAxfr       <- WithDoc <$> optSection' "zoneGetAxfr" permZoneSpec (annotationFor permZoneGetAxfr)
+    permZoneNotifySlaves  <- WithDoc <$> optSection' "zoneNotifySlaves" permZoneSpec (annotationFor permZoneNotifySlaves)
+    permZoneRectify       <- WithDoc <$> optSection' "zoneRectify" permZoneSpec (annotationFor permZoneRectify)
+    permZoneMetadata      <- WithDoc <$> optSection' "zoneMetadata" permZoneSpec (annotationFor permZoneMetadata)
+    permZoneCryptokeys    <- WithDoc <$> optSection' "zoneCryptokeys" permZoneSpec (annotationFor permZoneCryptokeys)
+    permTSIGKeyList       <- WithDoc <$> optSection' "tsigKeyList" auth''spec (annotationFor permTSIGKeyList)
+    permTSIGKeyCreate     <- WithDoc <$> optSection' "tsigKeyCreate" auth''spec (annotationFor permTSIGKeyCreate)
+    permTSIGKeyView       <- WithDoc <$> optSection' "tsigKeyView" auth''spec (annotationFor permTSIGKeyView)
+    permTSIGKeyUpdate     <- WithDoc <$> optSection' "tsigKeyUpdate" auth''spec (annotationFor permTSIGKeyUpdate)
+    permTSIGKeyDelete     <- WithDoc <$> optSection' "tsigKeyDelete" auth''spec (annotationFor permTSIGKeyDelete)
 
     pure Perms{..}
   where
@@ -215,29 +215,29 @@ configSpec = sectionsSpec "top-level" $ do
 
 allForbidden :: Perms
 allForbidden = Perms
-  { permApiVersions       = WithDocs (Just [SimpleAuthorization])
-  , permServerList        = WithDocs Nothing
-  , permServerView        = WithDocs Nothing
-  , permSearch            = WithDocs Nothing
-  , permFlushCache        = WithDocs Nothing
-  , permStatistics        = WithDocs Nothing
-  , permZoneCreate        = WithDocs Nothing
-  , permZoneList          = WithDocs Nothing
-  , permZoneView          = WithDocs Nothing
-  , permZoneUpdate        = WithDocs Nothing
-  , permZoneUpdateRecords = WithDocs Nothing
-  , permZoneDelete        = WithDocs Nothing
-  , permZoneTriggerAxfr   = WithDocs Nothing
-  , permZoneGetAxfr       = WithDocs Nothing
-  , permZoneNotifySlaves  = WithDocs Nothing
-  , permZoneRectify       = WithDocs Nothing
-  , permZoneMetadata      = WithDocs Nothing
-  , permZoneCryptokeys    = WithDocs Nothing
-  , permTSIGKeyList       = WithDocs Nothing
-  , permTSIGKeyCreate     = WithDocs Nothing
-  , permTSIGKeyView       = WithDocs Nothing
-  , permTSIGKeyUpdate     = WithDocs Nothing
-  , permTSIGKeyDelete     = WithDocs Nothing
+  { permApiVersions       = WithDoc (Just [SimpleAuthorization])
+  , permServerList        = WithDoc Nothing
+  , permServerView        = WithDoc Nothing
+  , permSearch            = WithDoc Nothing
+  , permFlushCache        = WithDoc Nothing
+  , permStatistics        = WithDoc Nothing
+  , permZoneCreate        = WithDoc Nothing
+  , permZoneList          = WithDoc Nothing
+  , permZoneView          = WithDoc Nothing
+  , permZoneUpdate        = WithDoc Nothing
+  , permZoneUpdateRecords = WithDoc Nothing
+  , permZoneDelete        = WithDoc Nothing
+  , permZoneTriggerAxfr   = WithDoc Nothing
+  , permZoneGetAxfr       = WithDoc Nothing
+  , permZoneNotifySlaves  = WithDoc Nothing
+  , permZoneRectify       = WithDoc Nothing
+  , permZoneMetadata      = WithDoc Nothing
+  , permZoneCryptokeys    = WithDoc Nothing
+  , permTSIGKeyList       = WithDoc Nothing
+  , permTSIGKeyCreate     = WithDoc Nothing
+  , permTSIGKeyView       = WithDoc Nothing
+  , permTSIGKeyUpdate     = WithDoc Nothing
+  , permTSIGKeyDelete     = WithDoc Nothing
   }
 
 userSpec :: ValueSpec (Username, User)
