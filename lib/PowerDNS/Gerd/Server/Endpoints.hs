@@ -45,19 +45,6 @@ server = GuardedAPI
   , tsigkeys   = genericServerT . guardedTSIGKeys
   }
 
-guardedVersions :: User -> PDNS.VersionsAPI AsGerd
-guardedVersions _ = PDNS.VersionsAPI
-  { PDNS.apiListVersions = runProxy PDNS.listVersions
-  }
-
-guardedServers :: User -> PDNS.ServersAPI AsGerd
-guardedServers _ = PDNS.ServersAPI
-  { PDNS.apiListServers = const0 forbidden
-  , PDNS.apiGetServer   = const1 forbidden
-  , PDNS.apiSearch      = const4 forbidden
-  , PDNS.apiFlushCache  = const2 forbidden
-  , PDNS.apiStatistics  = const3 forbidden
-  }
 
 wither :: Applicative f => (a -> f (Maybe b)) -> [a] -> f [b]
 wither f t = catMaybes <$> traverse f t
@@ -110,22 +97,25 @@ handleAuthResSome xs = do
   traverse_ (logDebugN . showT) xs
   pure (authToken <$> xs)
 
-authorizeZoneEndpoint :: (KnownSymbol tag, Show tok) => User -> PermSelector tok DomPat tag -> T.Text -> T.Text -> GerdM tok
+type SrvSelector tok tag = AnySelector (Authorization tok ()) tag
+type ZoneSelector tok pat tag = AnySelector (Authorization tok pat) tag
+type SimpleSelector tag = AnySelector SimpleAuthorization tag
+type AnySelector what tag = Perms -> Maybe [what] `WithDoc` tag
+
+authorizeZoneEndpoint :: (KnownSymbol tag, Show tok) => User -> ZoneSelector tok DomPat tag -> T.Text -> T.Text -> GerdM tok
 authorizeZoneEndpoint user sel srv zone = do
   zone' <- parseZone zone
-  perms <- authorizeEndpoint user sel
+  perms <- authorizeEndpoint__ user sel
   handleAuthRes1 (matchingZone srv zone' perms)
 
-authorizeZoneEndpoints :: (KnownSymbol tag, Show tok) => User -> PermSelector tok DomPat tag -> T.Text -> T.Text -> GerdM [tok]
+authorizeZoneEndpoints :: (KnownSymbol tag, Show tok) => User -> ZoneSelector tok DomPat tag -> T.Text -> T.Text -> GerdM [tok]
 authorizeZoneEndpoints user sel srv zone = do
   zone' <- parseZone zone
-  perms <- authorizeEndpoint user sel
+  perms <- authorizeEndpoint__ user sel
   handleAuthResSome (matchingZone srv zone' perms)
 
-type PermSelector tok pat tag = Perms -> Maybe [Authorization tok pat] `WithDoc` tag
-
-authorizeEndpoint :: KnownSymbol tag => User -> PermSelector tok pat tag -> GerdM [Authorization tok pat]
-authorizeEndpoint user sel = do
+authorizeEndpoint__ :: KnownSymbol tag => User -> AnySelector what tag -> GerdM [what]
+authorizeEndpoint__ user sel = do
   case withoutDoc (sel (uPerms user)) of
     Nothing -> do
       logWarnN ("No permission for: " <> describe sel)
@@ -134,9 +124,12 @@ authorizeEndpoint user sel = do
       logDebugN ("Principal permissions found for: " <> describe sel)
       pure perms
 
-authorizeSrvEndpoint :: (KnownSymbol tag, Show tok) => User -> PermSelector tok () tag -> T.Text -> GerdM tok
+authorizeSimpleEndpoint :: KnownSymbol tag => User -> SimpleSelector tag -> GerdM ()
+authorizeSimpleEndpoint user sel = () <$ authorizeEndpoint__ user sel
+
+authorizeSrvEndpoint :: (KnownSymbol tag, Show tok) => User -> SrvSelector tok tag -> T.Text -> GerdM tok
 authorizeSrvEndpoint user sel srv = do
-  perms <- authorizeEndpoint user sel
+  perms <- authorizeEndpoint__ user sel
   handleAuthRes1 (matchingSrv srv perms)
 
 recordUpdatePats :: [Authorization DomTyPat DomPat] -> T.Text -> T.Text -> GerdM [DomTyPat]
@@ -144,6 +137,21 @@ recordUpdatePats perms srv zone = do
   zone' <- parseZone zone
   pure (authToken <$> matchingZone srv zone' perms)
 
+guardedVersions :: User -> PDNS.VersionsAPI AsGerd
+guardedVersions user = PDNS.VersionsAPI
+  { PDNS.apiListVersions = do
+      authorizeSimpleEndpoint user permApiVersions
+      runProxy PDNS.listVersions
+  }
+
+guardedServers :: User -> PDNS.ServersAPI AsGerd
+guardedServers _ = PDNS.ServersAPI
+  { PDNS.apiListServers = const0 forbidden
+  , PDNS.apiGetServer   = const1 forbidden
+  , PDNS.apiSearch      = const4 forbidden
+  , PDNS.apiFlushCache  = const2 forbidden
+  , PDNS.apiStatistics  = const3 forbidden
+  }
 
 guardedZones :: User -> PDNS.ZonesAPI AsGerd
 guardedZones user = PDNS.ZonesAPI
@@ -154,7 +162,7 @@ guardedZones user = PDNS.ZonesAPI
             Filtered   -> do
               wither (\z -> do
                          nam <- PDNS.zone_name z `notePanic` "missing zone name"
-                         perms <- authorizeEndpoint user permZoneUpdateRecords
+                         perms <- authorizeEndpoint__ user permZoneUpdateRecords
                          domTyPats <- recordUpdatePats perms srv nam
                          filterZoneMaybe domTyPats z
                      ) zs
@@ -170,7 +178,7 @@ guardedZones user = PDNS.ZonesAPI
         case perm of
             Filtered   -> do
               domTyPats <- do
-                perms <- authorizeEndpoint user permZoneUpdateRecords
+                perms <- authorizeEndpoint__ user permZoneUpdateRecords
                 recordUpdatePats perms srv zone
               filterZone domTyPats z
             Unfiltered -> pure z
