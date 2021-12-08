@@ -43,7 +43,7 @@ optSectionDefault' :: a -> T.Text -> ValueSpec a -> T.Text -> SectionsSpec a
 optSectionDefault' def sect spec descr = fromMaybe def <$> optSection' sect spec descr
 
 simpleAuthSpec :: ValueSpec [SimpleAuthorization]
-simpleAuthSpec = [] <$ atomSpec "forbid"
+simpleAuthSpec = [SimpleAuthorization] <$ atomSpec "permit"
 
 srvAuthSpec :: ValueSpec [Authorization'']
 srvAuthSpec = (pure <$> permit) <!> oneOrList
@@ -96,12 +96,15 @@ domTyPatSpec = do
   recTyPat <- reqSection' "types" recTyPatSpec "Matching any of these record types"
   pure (domPat, recTyPat)
 
-permZoneUpdateRecordsSpec :: ValueSpec (Authorization DomTyPat DomPat)
-permZoneUpdateRecordsSpec = sectionsSpec "perm-zone-update-records-spec" $ do
-  authServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
-  authPattern <- optSectionDefault' anyDomPat "zone" domPatSpec "Matching this zone. If left empty, will match any zone"
-  authToken <- domTyPatSpec
-  pure Authorization{..}
+permZoneUpdateRecordsSpec :: ValueSpec [Authorization DomTyPat DomPat]
+permZoneUpdateRecordsSpec = (pure <$> permit) <!> oneOrList
+    (sectionsSpec "perm-zone-update-records-spec" $ do
+        authServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
+        authPattern <- optSectionDefault' anyDomPat "zone" domPatSpec "Matching this zone. If left empty, will match any zone"
+        authToken <- domTyPatSpec
+        pure Authorization{..})
+  where
+    permit = Authorization "localhost" anyDomPat (anyDomPat, AnyRecordType) <$ atomSpec "permit"
 
 permsSpec :: ValueSpec Perms
 permsSpec = sectionsSpec "perms-spec" $ do
@@ -115,7 +118,7 @@ permsSpec = sectionsSpec "perms-spec" $ do
     permZoneList          <- WithDoc <$> optSection' "zoneList" permZoneListSpec (annotationFor permZoneList)
     permZoneView          <- WithDoc <$> optSection' "zoneView" permZoneViewSpec (annotationFor permZoneView)
     permZoneUpdate        <- WithDoc <$> optSection' "zoneUpdate" permZoneSpec (annotationFor permZoneUpdate)
-    permZoneUpdateRecords <- WithDoc <$> optSection' "zoneUpdateRecords" (oneOrList permZoneUpdateRecordsSpec) (annotationFor permZoneUpdateRecords)
+    permZoneUpdateRecords <- WithDoc <$> optSection' "zoneUpdateRecords" permZoneUpdateRecordsSpec (annotationFor permZoneUpdateRecords)
     permZoneDelete        <- WithDoc <$> optSection' "zoneDelete" permZoneSpec (annotationFor permZoneDelete)
     permZoneTriggerAxfr   <- WithDoc <$> optSection' "zoneTriggerAxfr" permZoneSpec (annotationFor permZoneTriggerAxfr)
     permZoneGetAxfr       <- WithDoc <$> optSection' "zoneGetAxfr" permZoneSpec (annotationFor permZoneGetAxfr)
