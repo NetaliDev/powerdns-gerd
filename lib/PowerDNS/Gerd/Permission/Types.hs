@@ -80,7 +80,7 @@ data Perms = Perms
                             `WithDoc` "list api versions"
 
   -- Server wide
-  , permServerList        :: Maybe [Authorization'']
+  , permServerList        :: Maybe [SimpleAuthorization]
                              `WithDoc` "list servers"
 
   , permServerView        :: Maybe [Authorization'']

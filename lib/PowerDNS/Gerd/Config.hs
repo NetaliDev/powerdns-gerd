@@ -1,6 +1,6 @@
-{-# LANGUAGE ApplicativeDo       #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ApplicativeDo     #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 module PowerDNS.Gerd.Config
   ( Config(..)
   , loadConfig
@@ -42,8 +42,8 @@ optSectionDefault' def sect spec descr = fromMaybe def <$> optSection' sect spec
 simpleAuthSpec :: ValueSpec [SimpleAuthorization]
 simpleAuthSpec = [] <$ atomSpec "forbid"
 
-auth''spec :: ValueSpec [Authorization'']
-auth''spec = (pure <$> permit) <!> oneOrList
+srvAuthSpec :: ValueSpec [Authorization'']
+srvAuthSpec = (pure <$> permit) <!> oneOrList
     (sectionsSpec "server-authorization-spec" $ do
       authServer <- reqSection' "server" textSpec "Matching this server. Defaults to localhost"
       authPattern <- pure ()
@@ -103,12 +103,12 @@ permZoneUpdateRecordsSpec = sectionsSpec "perm-zone-update-records-spec" $ do
 permsSpec :: ValueSpec Perms
 permsSpec = sectionsSpec "perms-spec" $ do
     permApiVersions       <- WithDoc <$> optSection' "apiVersions" simpleAuthSpec (annotationFor permApiVersions)
-    permServerList        <- WithDoc <$> optSection' "serverList" auth''spec (annotationFor permServerList)
-    permServerView        <- WithDoc <$> optSection' "serverView" auth''spec (annotationFor permServerView)
-    permSearch            <- WithDoc <$> optSection' "search" auth''spec (annotationFor permSearch)
-    permFlushCache        <- WithDoc <$> optSection' "flushCache" auth''spec (annotationFor permFlushCache)
-    permStatistics        <- WithDoc <$> optSection' "statistics" auth''spec (annotationFor permStatistics)
-    permZoneCreate        <- WithDoc <$> optSection' "zoneCreate" auth''spec (annotationFor permZoneCreate)
+    permServerList        <- WithDoc <$> optSection' "serverList" simpleAuthSpec (annotationFor permServerList)
+    permServerView        <- WithDoc <$> optSection' "serverView" srvAuthSpec (annotationFor permServerView)
+    permSearch            <- WithDoc <$> optSection' "search" srvAuthSpec (annotationFor permSearch)
+    permFlushCache        <- WithDoc <$> optSection' "flushCache" srvAuthSpec (annotationFor permFlushCache)
+    permStatistics        <- WithDoc <$> optSection' "statistics" srvAuthSpec (annotationFor permStatistics)
+    permZoneCreate        <- WithDoc <$> optSection' "zoneCreate" srvAuthSpec (annotationFor permZoneCreate)
     permZoneList          <- WithDoc <$> optSection' "zoneList" permZoneListSpec (annotationFor permZoneList)
     permZoneView          <- WithDoc <$> optSection' "zoneView" permZoneViewSpec (annotationFor permZoneView)
     permZoneUpdate        <- WithDoc <$> optSection' "zoneUpdate" permZoneSpec (annotationFor permZoneUpdate)
@@ -120,11 +120,11 @@ permsSpec = sectionsSpec "perms-spec" $ do
     permZoneRectify       <- WithDoc <$> optSection' "zoneRectify" permZoneSpec (annotationFor permZoneRectify)
     permZoneMetadata      <- WithDoc <$> optSection' "zoneMetadata" permZoneSpec (annotationFor permZoneMetadata)
     permZoneCryptokeys    <- WithDoc <$> optSection' "zoneCryptokeys" permZoneSpec (annotationFor permZoneCryptokeys)
-    permTSIGKeyList       <- WithDoc <$> optSection' "tsigKeyList" auth''spec (annotationFor permTSIGKeyList)
-    permTSIGKeyCreate     <- WithDoc <$> optSection' "tsigKeyCreate" auth''spec (annotationFor permTSIGKeyCreate)
-    permTSIGKeyView       <- WithDoc <$> optSection' "tsigKeyView" auth''spec (annotationFor permTSIGKeyView)
-    permTSIGKeyUpdate     <- WithDoc <$> optSection' "tsigKeyUpdate" auth''spec (annotationFor permTSIGKeyUpdate)
-    permTSIGKeyDelete     <- WithDoc <$> optSection' "tsigKeyDelete" auth''spec (annotationFor permTSIGKeyDelete)
+    permTSIGKeyList       <- WithDoc <$> optSection' "tsigKeyList" srvAuthSpec (annotationFor permTSIGKeyList)
+    permTSIGKeyCreate     <- WithDoc <$> optSection' "tsigKeyCreate" srvAuthSpec (annotationFor permTSIGKeyCreate)
+    permTSIGKeyView       <- WithDoc <$> optSection' "tsigKeyView" srvAuthSpec (annotationFor permTSIGKeyView)
+    permTSIGKeyUpdate     <- WithDoc <$> optSection' "tsigKeyUpdate" srvAuthSpec (annotationFor permTSIGKeyUpdate)
+    permTSIGKeyDelete     <- WithDoc <$> optSection' "tsigKeyDelete" srvAuthSpec (annotationFor permTSIGKeyDelete)
 
     pure Perms{..}
   where
