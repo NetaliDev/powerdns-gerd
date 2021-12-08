@@ -11,9 +11,12 @@ where
 import           Data.Maybe (fromMaybe)
 import           Data.String (fromString)
 
+import           Config
+import           Config.Macro
 import           Config.Schema
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+import qualified Data.Text.IO as T
 import           Data.Word (Word16)
 import           Network.Wai.Handler.Warp (HostPreference)
 import qualified Text.PrettyPrint as Pretty
@@ -25,7 +28,7 @@ import           PowerDNS.API.Zones
 import           PowerDNS.Gerd.Permission
 import           PowerDNS.Gerd.User
 import           PowerDNS.Gerd.Utils
-import           UnliftIO (MonadIO, liftIO)
+import           UnliftIO (MonadIO, liftIO, throwIO)
 
 data Config = Config
   { cfgUpstreamApiBaseUrl :: T.Text
@@ -246,9 +249,17 @@ userSpec = sectionsSpec "user-spec" $ do
 
   pure (uName, User{..})
 
+loadValueFromFileWithMacros :: ValueSpec a -> FilePath -> IO a
+loadValueFromFileWithMacros spec path =
+  do txt <- T.readFile path
+     let exceptIO m = either throwIO return m
+     val <- exceptIO (parse txt)
+     val' <- exceptIO (expandMacros val)
+     exceptIO (loadValue spec val')
+
 loadConfig :: MonadIO m => FilePath -> m Config
 loadConfig path = liftIO $ do
-  cfg <- loadValueFromFile configSpec path
+  cfg <- loadValueFromFileWithMacros configSpec path
   validate cfg
   pure cfg
 
