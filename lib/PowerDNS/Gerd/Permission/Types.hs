@@ -80,38 +80,78 @@ describe :: forall s a. KnownSymbol s => (Perms -> WithDoc a s) -> T.Text
 describe _ = T.pack (symbolVal (Proxy :: Proxy s))
 
 data Perms = Perms
-  { permApiVersions       :: Maybe [SimpleAuthorization] `WithDoc` "list api versions"
+  { permApiVersions       :: Maybe [SimpleAuthorization]
+                            `WithDoc` "list api versions"
 
   -- Server wide
-  , permServerList        :: Maybe [Authorization''] `WithDoc` "list servers"
-  , permServerView        :: Maybe [Authorization''] `WithDoc` "view a server"
-  , permSearch            :: Maybe [Authorization''] `WithDoc` "search"
-  , permFlushCache        :: Maybe [Authorization''] `WithDoc` "flush cache"
-  , permStatistics        :: Maybe [Authorization''] `WithDoc` "statistics"
+  , permServerList        :: Maybe [Authorization'']
+                             `WithDoc` "list servers"
+
+  , permServerView        :: Maybe [Authorization'']
+                             `WithDoc` "view a server"
+
+  , permSearch            :: Maybe [Authorization'']
+                             `WithDoc` "search"
+
+  , permFlushCache        :: Maybe [Authorization'']
+                             `WithDoc` "flush cache"
+
+  , permStatistics        :: Maybe [Authorization'']
+                             `WithDoc` "statistics"
 
   -- Zone wide
-  , permZoneCreate        :: Maybe [Authorization''] `WithDoc` "create a zone"
-  , permZoneList          :: Maybe [Authorization Filtered ()] `WithDoc` "list zones"
+  , permZoneCreate        :: Maybe [Authorization'']
+                             `WithDoc` "create a zone"
 
+  , permZoneList          :: Maybe [Authorization Filtered ()]
+                             `WithDoc` "list zones"
 
   -- Per zone
-  , permZoneView          :: Maybe [Authorization Filtered DomPat] `WithDoc` "view a zone"
-  , permZoneUpdate        :: Maybe [Authorization' DomPat] `WithDoc` "update a zone"
-  , permZoneUpdateRecords :: Maybe [Authorization DomTyPat DomPat] `WithDoc` "update a zones records"
-  , permZoneDelete        :: Maybe [Authorization' DomPat] `WithDoc` "delete a zone"
-  , permZoneTriggerAxfr   :: Maybe [Authorization' DomPat] `WithDoc` "trigger a zone axfr"
-  , permZoneGetAxfr       :: Maybe [Authorization' DomPat] `WithDoc` "get a zone in axfr format"
-  , permZoneNotifySlaves  :: Maybe [Authorization' DomPat] `WithDoc` "notify slaves"
-  , permZoneRectify       :: Maybe [Authorization' DomPat] `WithDoc` "rectify a zone"
-  , permZoneMetadata      :: Maybe [Authorization' DomPat] `WithDoc` "manipulating a zones metadata"
-  , permZoneCryptokeys    :: Maybe [Authorization' DomPat] `WithDoc` "manipulating a zones cryptokeys"
+  , permZoneView          :: Maybe [Authorization Filtered DomPat]
+                             `WithDoc` "view a zone"
+
+  , permZoneUpdate        :: Maybe [Authorization' DomPat]
+                             `WithDoc` "update a zone"
+
+  , permZoneUpdateRecords :: Maybe [Authorization DomTyPat DomPat]
+                             `WithDoc` "update a zones records"
+
+  , permZoneDelete        :: Maybe [Authorization' DomPat]
+                             `WithDoc` "delete a zone"
+
+  , permZoneTriggerAxfr   :: Maybe [Authorization' DomPat]
+                             `WithDoc` "trigger a zone axfr"
+
+  , permZoneGetAxfr       :: Maybe [Authorization' DomPat]
+                             `WithDoc` "get a zone in axfr format"
+
+  , permZoneNotifySlaves  :: Maybe [Authorization' DomPat]
+                             `WithDoc` "notify slaves"
+
+  , permZoneRectify       :: Maybe [Authorization' DomPat]
+                             `WithDoc` "rectify a zone"
+
+  , permZoneMetadata      :: Maybe [Authorization' DomPat]
+                             `WithDoc` "manipulating a zones metadata"
+
+  , permZoneCryptokeys    :: Maybe [Authorization' DomPat]
+                             `WithDoc` "manipulating a zones cryptokeys"
 
   -- TSIG specific
-  , permTSIGKeyList       :: Maybe [Authorization''] `WithDoc` "list tsig keys"
-  , permTSIGKeyCreate     :: Maybe [Authorization''] `WithDoc` "create a tsig key"
-  , permTSIGKeyView       :: Maybe [Authorization''] `WithDoc` "view a tsig key"
-  , permTSIGKeyUpdate     :: Maybe [Authorization''] `WithDoc` "update a tsig key"
-  , permTSIGKeyDelete     :: Maybe [Authorization''] `WithDoc` "delete a tsig key"
+  , permTSIGKeyList       :: Maybe [Authorization'']
+                             `WithDoc` "list tsig keys"
+
+  , permTSIGKeyCreate     :: Maybe [Authorization'']
+                             `WithDoc` "create a tsig key"
+
+  , permTSIGKeyView       :: Maybe [Authorization'']
+                             `WithDoc` "view a tsig key"
+
+  , permTSIGKeyUpdate     :: Maybe [Authorization'']
+                             `WithDoc` "update a tsig key"
+
+  , permTSIGKeyDelete     :: Maybe [Authorization'']
+                             `WithDoc` "delete a tsig key"
   }
 
 -- | A simple convenient token to show we are authorized to do this. No patterns or tokens.
