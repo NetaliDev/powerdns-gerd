@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wno-unused-do-bind #-}
 module PowerDNS.Gerd.CmdServer
   ( runServer
   )
