@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE KindSignatures #-}
 module PowerDNS.Gerd.Config
   ( Config(..)
   , loadConfig
@@ -34,9 +35,9 @@ data Config = Config
   , cfgUpstreamApiKey :: T.Text
   , cfgListenAddress :: HostPreference
   , cfgListenPort :: Word16
+  , cfgDefaultPerms :: Perms
   , cfgUsers :: [(Username, User)]
   }
-
 
 optSectionDefault' :: a -> T.Text -> ValueSpec a -> T.Text -> SectionsSpec a
 optSectionDefault' def sect spec descr = fromMaybe def <$> optSection' sect spec descr
@@ -57,16 +58,16 @@ auth''spec = (pure <$> permit) <!> oneOrList
 anyDomPat :: DomPat
 anyDomPat = DomPat [DomGlobStar]
 
-permZoneListSpec :: ValueSpec [Authorization Filtered DomPat]
+permZoneListSpec :: ValueSpec [Authorization Filtered ()]
 permZoneListSpec = (pure <$> permit) <!> (pure <$> filtered) <!> oneOrList
     (sectionsSpec "perm-zone-list-spec" $ do
         authServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
-        authPattern <- optSectionDefault' anyDomPat "zone" domPatSpec "Matching this zone. If left empty, will match any zone"
+        authPattern <- pure ()
         authToken <- reqSection' "type" filteredSpec "Whether or not records will be filtered using zoneUpdateRecords permissions"
         pure Authorization{..})
   where
-    permit = Authorization "localhost" anyDomPat Unfiltered <$ atomSpec "permit"
-    filtered = Authorization "localhost" anyDomPat Filtered <$ atomSpec "filtered"
+    permit = Authorization "localhost" () Unfiltered <$ atomSpec "permit"
+    filtered = Authorization "localhost" () Filtered <$ atomSpec "filtered"
 
 permZoneViewSpec :: ValueSpec [Authorization Filtered DomPat]
 permZoneViewSpec = (pure <$> permit) <!> (pure <$> filtered) <!> oneOrList
@@ -104,31 +105,34 @@ permZoneUpdateRecordsSpec = sectionsSpec "perm-zone-update-records-spec" $ do
 
 permsSpec :: ValueSpec Perms
 permsSpec = sectionsSpec "perms-spec" $ do
-  permApiVersions <- optSectionDefault' [SimpleAuthorization] "apiVersions" simpleAuthSpec "Permission for listing API versions. Permitted by default."
-  permServerList <- optSectionDefault' [] "serverList" auth''spec "Permission for listing servers"
-  permServerView <- optSectionDefault' [] "serverView" auth''spec "Permission for viewing a server"
-  permSearch <- optSectionDefault' [] "search" auth''spec "Permission for searching"
-  permFlushCache <- optSectionDefault' [] "flushCache" auth''spec "Permission for flushing the cache"
-  permStatistics <- optSectionDefault' [] "statistics" auth''spec "Permission for getting statistics"
-  permZoneCreate <- optSectionDefault' [] "zoneCreate" auth''spec "Permission for creating a zone"
-  permZoneList <- optSectionDefault' [] "zoneList" permZoneListSpec "Permission for listing zones"
-  permZoneView <- optSectionDefault' [] "zoneView" permZoneViewSpec "Permission for viewing a zone"
-  permZoneUpdate <- optSectionDefault' [] "zoneUpdate" permZoneSpec "Permission for updating a zone"
-  permZoneUpdateRecords <- optSectionDefault' [] "zoneUpdateRecords" (oneOrList permZoneUpdateRecordsSpec) "Permission for updating records in a zone"
-  permZoneDelete <- optSectionDefault' [] "zoneDelete" permZoneSpec "Permission for deleting a zone"
-  permZoneTriggerAxfr <- optSectionDefault' [] "zoneTriggerAxfr" permZoneSpec "Permission for triggering an AXFR"
-  permZoneGetAxfr <- optSectionDefault' [] "zoneGetAxfr" permZoneSpec "Permission for getting an AXFR"
-  permZoneNotifySlaves <- optSectionDefault' [] "zoneNotifySlaves" permZoneSpec "Permission for notifying slaves"
-  permZoneRectify <- optSectionDefault' [] "zoneRectify" permZoneSpec "Permission for rectifying a zone"
-  permZoneMetadata <- optSectionDefault' [] "zoneMetadata" permZoneSpec "Permission for manipulating a zones metadata"
-  permZoneCryptokeys <- optSectionDefault' [] "zoneCryptokeys" permZoneSpec "Permission for manipulating a zones cryptokeys"
-  permTSIGKeyList <- optSectionDefault' [] "tsigKeyList" auth''spec "Permission for listing TSIG keys"
-  permTSIGKeyCreate <- optSectionDefault' [] "tsigKeyCreate" auth''spec "Permission for creating a TSIG key"
-  permTSIGKeyView <- optSectionDefault' [] "tsigKeyView" auth''spec "Permission for viewing a TSIG key"
-  permTSIGKeyUpdate <- optSectionDefault' [] "tsigKeyUpdate" auth''spec "Permission for updating a TSIG key"
-  permTSIGKeyDelete <- optSectionDefault' [] "tsigKeyDelete" auth''spec "Permission for deleting a TSIG keys"
+    permApiVersions       <- optSection' "apiVersions" simpleAuthSpec (descr permApiVersions)
+    permServerList        <- optSection' "serverList" auth''spec (descr permServerList)
+    permServerView        <- optSection' "serverView" auth''spec (descr permServerView)
+    permSearch            <- optSection' "search" auth''spec (descr permSearch)
+    permFlushCache        <- optSection' "flushCache" auth''spec (descr permFlushCache)
+    permStatistics        <- optSection' "statistics" auth''spec (descr permStatistics)
+    permZoneCreate        <- optSection' "zoneCreate" auth''spec (descr permZoneCreate)
+    permZoneList          <- optSection' "zoneList" permZoneListSpec (descr permZoneList)
+    permZoneView          <- optSection' "zoneView" permZoneViewSpec (descr permZoneView)
+    permZoneUpdate        <- optSection' "zoneUpdate" permZoneSpec (descr permZoneUpdate)
+    permZoneUpdateRecords <- optSection' "zoneUpdateRecords" (oneOrList permZoneUpdateRecordsSpec) (descr permZoneUpdateRecords)
+    permZoneDelete        <- optSection' "zoneDelete" permZoneSpec (descr permZoneDelete)
+    permZoneTriggerAxfr   <- optSection' "zoneTriggerAxfr" permZoneSpec (descr permZoneTriggerAxfr)
+    permZoneGetAxfr       <- optSection' "zoneGetAxfr" permZoneSpec (descr permZoneGetAxfr)
+    permZoneNotifySlaves  <- optSection' "zoneNotifySlaves" permZoneSpec (descr permZoneNotifySlaves)
+    permZoneRectify       <- optSection' "zoneRectify" permZoneSpec (descr permZoneRectify)
+    permZoneMetadata      <- optSection' "zoneMetadata" permZoneSpec (descr permZoneMetadata)
+    permZoneCryptokeys    <- optSection' "zoneCryptokeys" permZoneSpec (descr permZoneCryptokeys)
+    permTSIGKeyList       <- optSection' "tsigKeyList" auth''spec (descr permTSIGKeyList)
+    permTSIGKeyCreate     <- optSection' "tsigKeyCreate" auth''spec (descr permTSIGKeyCreate)
+    permTSIGKeyView       <- optSection' "tsigKeyView" auth''spec (descr permTSIGKeyView)
+    permTSIGKeyUpdate     <- optSection' "tsigKeyUpdate" auth''spec (descr permTSIGKeyUpdate)
+    permTSIGKeyDelete     <- optSection' "tsigKeyDelete" auth''spec (descr permTSIGKeyDelete)
 
-  pure Perms{..}
+    pure PermsF{..}
+  where
+    descr :: (DescrPerms -> Tagged a T.Text) -> T.Text
+    descr sel = "Permission for " <> runTagged (sel permsDescr)
 
 filteredSpec :: ValueSpec Filtered
 filteredSpec = Filtered <$ atomSpec "filtered"
@@ -206,7 +210,35 @@ configSpec = sectionsSpec "top-level" $ do
   cfgListenAddress <- reqSection' "listenAddress" hostPrefSpec "The IP address the proxy will bind on"
   cfgListenPort <- reqSection "listenPort" "The TCP port the proxy will bind on"
   cfgUsers <- reqSection' "users" (listSpec userSpec) "API users"
+  cfgDefaultPerms <- optSectionDefault' allForbidden "defaultPerms" permsSpec "Default permissions. If a specific permission is not set under a user, If unset, all endpoints except API listing are forbidden by default."
   pure Config{..}
+
+allForbidden :: Perms
+allForbidden = PermsF
+  { permApiVersions       = Just [SimpleAuthorization]
+  , permServerList        = Nothing
+  , permServerView        = Nothing
+  , permSearch            = Nothing
+  , permFlushCache        = Nothing
+  , permStatistics        = Nothing
+  , permZoneCreate        = Nothing
+  , permZoneList          = Nothing
+  , permZoneView          = Nothing
+  , permZoneUpdate        = Nothing
+  , permZoneUpdateRecords = Nothing
+  , permZoneDelete        = Nothing
+  , permZoneTriggerAxfr   = Nothing
+  , permZoneGetAxfr       = Nothing
+  , permZoneNotifySlaves  = Nothing
+  , permZoneRectify       = Nothing
+  , permZoneMetadata      = Nothing
+  , permZoneCryptokeys    = Nothing
+  , permTSIGKeyList       = Nothing
+  , permTSIGKeyCreate     = Nothing
+  , permTSIGKeyView       = Nothing
+  , permTSIGKeyUpdate     = Nothing
+  , permTSIGKeyDelete     = Nothing
+  }
 
 userSpec :: ValueSpec (Username, User)
 userSpec = sectionsSpec "user-spec" $ do

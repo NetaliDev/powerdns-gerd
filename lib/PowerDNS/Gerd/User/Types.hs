@@ -8,7 +8,6 @@ module PowerDNS.Gerd.User.Types
 where
 
 import qualified Data.ByteString.Char8 as B8
-import qualified Data.Map as M
 import qualified Data.Text as T
 import           PowerDNS.Gerd.Permission.Types
 

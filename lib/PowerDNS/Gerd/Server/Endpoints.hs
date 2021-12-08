@@ -1,6 +1,8 @@
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE OverloadedLabels  #-}
 {-# LANGUAGE OverloadedStrings #-}
-
+{-# LANGUAGE DataKinds #-}
 module PowerDNS.Gerd.Server.Endpoints
   ( server
   )
@@ -64,8 +66,8 @@ wither f t = catMaybes <$> traverse f t
 
 
 -- | Ensure the user has sufficient permissions for this record update
-authorizeRecordUpdate :: [DomTyPat] -> PDNS.RRSet -> GerdM ()
-authorizeRecordUpdate pats rrset = do
+validateRecordUpdate :: [DomTyPat] -> PDNS.RRSet -> GerdM ()
+validateRecordUpdate pats rrset = do
     let ty = PDNS.rrset_type rrset
     dom <- parseDom (PDNS.rrset_name rrset)
 
@@ -110,18 +112,34 @@ handleAuthResSome xs = do
   traverse_ (logDebugN . showT) xs
   pure (authToken <$> xs)
 
-hasZonePerm :: Show tok => [Authorization tok DomPat] -> T.Text -> T.Text -> GerdM tok
-hasZonePerm perms srv zone = do
+authorizeZoneEndpoint :: Show tok => User -> PermSelector tok DomPat -> T.Text -> T.Text -> GerdM tok
+authorizeZoneEndpoint user sel srv zone = do
   zone' <- parseZone zone
+  perms <- authorizeEndpoint user sel
   handleAuthRes1 (matchingZone srv zone' perms)
 
-hasZonePerms :: Show tok => [Authorization tok DomPat] -> T.Text -> T.Text -> GerdM [tok]
-hasZonePerms perms srv zone = do
+authorizeZoneEndpoints :: Show tok => User -> PermSelector tok DomPat -> T.Text -> T.Text -> GerdM [tok]
+authorizeZoneEndpoints user sel srv zone = do
   zone' <- parseZone zone
+  perms <- authorizeEndpoint user sel
   handleAuthResSome (matchingZone srv zone' perms)
 
-hasPerm :: (Show tok, Show pat) => [Authorization tok pat] -> T.Text -> GerdM tok
-hasPerm perms srv = handleAuthRes1 (matchingSrv srv perms)
+type PermSelector tok pat = forall mode. PermsF mode -> Inner mode [Authorization tok pat]
+
+authorizeEndpoint :: User -> PermSelector tok pat -> GerdM [Authorization tok pat]
+authorizeEndpoint user sel = do
+  case sel (uPerms user) of
+    Nothing -> do
+      logWarnN ("No permission for: " <> runTagged (sel permsDescr))
+      forbidden
+    Just perms -> do
+      logDebugN ("Principal permissions found for: " <> runTagged (sel permsDescr))
+      pure perms
+
+authorizeSrvEndpoint :: Show tok => User -> PermSelector tok () -> T.Text -> GerdM tok
+authorizeSrvEndpoint user sel srv = do
+  perms <- authorizeEndpoint user sel
+  handleAuthRes1 (matchingSrv srv perms)
 
 recordUpdatePats :: [Authorization DomTyPat DomPat] -> T.Text -> T.Text -> GerdM [DomTyPat]
 recordUpdatePats perms srv zone = do
@@ -132,69 +150,69 @@ recordUpdatePats perms srv zone = do
 guardedZones :: User -> PDNS.ZonesAPI AsGerd
 guardedZones user = PDNS.ZonesAPI
     { PDNS.apiListZones     = \srv zone dnssec -> do
-        mode <- hasPerm (permZoneList perms) srv
+        mode <- authorizeSrvEndpoint user permZoneList srv
         zs <- runProxy (PDNS.listZones srv zone dnssec)
         case mode of
             Filtered   -> do
               wither (\z -> do
                          nam <- PDNS.zone_name z `notePanic` "missing zone name"
-                         domTyPats <- recordUpdatePats (permZoneUpdateRecords perms) srv nam
+                         perms <- authorizeEndpoint user permZoneUpdateRecords
+                         domTyPats <- recordUpdatePats perms srv nam
                          filterZoneMaybe domTyPats z
                      ) zs
             Unfiltered -> pure zs
 
     , PDNS.apiCreateZone    = \srv rrset zone -> do
-        hasPerm (permZoneCreate perms) srv
+        authorizeSrvEndpoint user permZoneCreate srv
         runProxy (PDNS.createZone srv rrset zone)
 
     , PDNS.apiGetZone       = \srv zone rrs -> do
-        perm <- hasZonePerm (permZoneView perms) srv zone
+        perm <- authorizeZoneEndpoint user permZoneView srv zone
         z <- runProxy (PDNS.getZone srv zone rrs)
         case perm of
             Filtered   -> do
-              domTyPats <- recordUpdatePats (permZoneUpdateRecords perms) srv zone
+              domTyPats <- do
+                perms <- authorizeEndpoint user permZoneUpdateRecords
+                recordUpdatePats perms srv zone
               filterZone domTyPats z
             Unfiltered -> pure z
 
     , PDNS.apiDeleteZone    = \srv zone -> do
-        hasZonePerm (permZoneDelete perms) srv zone
+        authorizeZoneEndpoint user permZoneDelete srv zone
         runProxy (PDNS.deleteZone srv zone)
 
     , PDNS.apiUpdateRecords = \srv zone rrs -> do
-        domTyPats <- hasZonePerms (permZoneUpdateRecords perms) srv zone
+        domTyPats <- authorizeZoneEndpoints user permZoneUpdateRecords srv zone
         when (null (PDNS.rrsets rrs)) $ do
           logDebugN "zone record update: Record has no RRsets"
 
           -- Ensure we do not forward requests without RRSets to the upstream API.
           forbidden
 
-        traverse_ (authorizeRecordUpdate domTyPats) (PDNS.rrsets rrs)
+        traverse_ (validateRecordUpdate domTyPats) (PDNS.rrsets rrs)
 
         runProxy (PDNS.updateRecords srv zone rrs)
 
     , PDNS.apiUpdateZone    = \srv zone zoneData -> do
-        hasZonePerm (permZoneUpdate perms) srv zone
+        authorizeZoneEndpoint user permZoneUpdate srv zone
         runProxy (PDNS.updateZone srv zone zoneData)
 
     , PDNS.apiTriggerAxfr   = \srv zone -> do
-        hasZonePerm (permZoneTriggerAxfr perms) srv zone
+        authorizeZoneEndpoint user permZoneTriggerAxfr srv zone
         runProxy (PDNS.triggerAxfr srv zone)
 
     , PDNS.apiNotifySlaves  = \srv zone -> do
-        hasZonePerm (permZoneNotifySlaves perms) srv zone
+        authorizeZoneEndpoint user permZoneNotifySlaves srv zone
         runProxy (PDNS.notifySlaves srv zone)
 
     , PDNS.apiGetZoneAxfr   = \srv zone -> do
-        hasZonePerm (permZoneGetAxfr perms) srv zone
+        authorizeZoneEndpoint user permZoneGetAxfr srv zone
         runProxy (PDNS.getZoneAxfr srv zone)
 
     , PDNS.apiRectifyZone   = \srv zone -> do
-        hasZonePerm (permZoneRectify perms) srv zone
+        authorizeZoneEndpoint user permZoneRectify srv zone
         runProxy (PDNS.rectifyZone srv zone)
     }
-  where
-    perms :: Perms
-    perms = uPerms user
 
 guardedCryptokeys :: User -> PDNS.CryptokeysAPI AsGerd
 guardedCryptokeys _ = PDNS.CryptokeysAPI

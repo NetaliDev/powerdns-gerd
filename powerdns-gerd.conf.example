@@ -7,7 +7,8 @@ users:
     passHash: "$argon2id$v=19$m=8,t=1,p=1$cjV5UDFCSHRSaXJ0am9PZg$OIscttF7A8I40AK9Zxa3Sw"
 
     permissions:
-      search: permit
+      search:
+        permit
       zoneList: filtered
       zoneUpdateRecords:
         * { domain: "2.example.com.", types: [A, AAAA] }

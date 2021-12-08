@@ -39,6 +39,8 @@ import qualified UnliftIO.Exception as E
 import           PowerDNS.Gerd.Config (Config(..))
 import           PowerDNS.Gerd.Server.Endpoints
 import           PowerDNS.Gerd.Types
+import           PowerDNS.Gerd.Permission.Types
+import Control.Applicative ((<|>))
 
 type Logger = Loc -> LogSource -> LogLevel -> LogStr -> IO ()
 
@@ -101,13 +103,41 @@ authHandler cfg = mkAuthHandler handler
     decodeLenient = T.decodeUtf8With lenientDecode
 
     handler req = do
-        db <- cfgUsers <$> readTVarIO cfg
+        cfg' <- readTVarIO cfg
         apiKey <- lookup "X-API-Key" (requestHeaders req) `note401` "Missing API key"
         case BS.split (fromIntegral (ord ':')) apiKey of
-            [user, hash] -> do mUser <- liftIO $ authenticate db (decodeLenient user) hash
-                               mUser `note401` "Bad authentication"
+            [name, hash] -> do mUser <- liftIO $ authenticate (cfgUsers cfg') (decodeLenient name) hash
+                               user <- mUser `note401` "Bad authentication"
+                               pure (user { uPerms = loadDefaults (cfgDefaultPerms cfg') (uPerms user) })
+
             _            -> throw400 "Invalid X-API-Key syntax"
 
+loadDefaults :: Perms -> Perms -> Perms
+loadDefaults def x =
+  PermsF { permApiVersions = permApiVersions x <|> permApiVersions def
+        , permServerList = permServerList x <|> permServerList def
+        , permServerView = permServerView x <|> permServerView def
+        , permSearch = permSearch x <|> permSearch def
+        , permFlushCache = permFlushCache x <|> permFlushCache def
+        , permStatistics = permStatistics x <|> permStatistics def
+        , permZoneCreate = permZoneCreate x <|> permZoneCreate def
+        , permZoneList = permZoneList x <|> permZoneList def
+        , permZoneView = permZoneView x <|> permZoneView def
+        , permZoneUpdate = permZoneUpdate x <|> permZoneUpdate def
+        , permZoneUpdateRecords = permZoneUpdateRecords x <|> permZoneUpdateRecords def
+        , permZoneDelete = permZoneDelete x <|> permZoneDelete def
+        , permZoneTriggerAxfr = permZoneTriggerAxfr x <|> permZoneTriggerAxfr def
+        , permZoneGetAxfr = permZoneGetAxfr x <|> permZoneGetAxfr def
+        , permZoneNotifySlaves = permZoneNotifySlaves x <|> permZoneNotifySlaves def
+        , permZoneRectify = permZoneRectify x <|> permZoneRectify def
+        , permZoneMetadata = permZoneMetadata x <|> permZoneMetadata def
+        , permZoneCryptokeys = permZoneCryptokeys x <|> permZoneCryptokeys def
+        , permTSIGKeyList = permTSIGKeyList x <|> permTSIGKeyList def
+        , permTSIGKeyCreate = permTSIGKeyCreate x <|> permTSIGKeyCreate def
+        , permTSIGKeyView = permTSIGKeyView x <|> permTSIGKeyView def
+        , permTSIGKeyUpdate = permTSIGKeyUpdate x <|> permTSIGKeyUpdate def
+        , permTSIGKeyDelete = permTSIGKeyDelete x <|> permTSIGKeyDelete def
+        }
 
 type CtxtList = AuthHandler Request User ': '[]
 ourContext :: TVar Config -> Context CtxtList
