@@ -43,7 +43,7 @@ optInfo = info (cmd <**> helper)
 
 cmd :: Parser Command
 cmd = subparser $ mconcat
-  [ command "run-server" (info cmdServer (progDesc "Run the server" ))
+  [ command "server" (info cmdServer (progDesc "Run the server" ))
   , command "config-help" (info (pure CmdConfigHelp) (progDesc "Display config help" ))
   , command "config-validate" (info cmdConfigValidate (progDesc "Validate config file"))
   , command "digest" (info cmdDigest (progDesc "Digest a password"))
