@@ -118,10 +118,10 @@ authorizeEndpoint__ :: KnownSymbol tag => User -> AnySelector what tag -> GerdM 
 authorizeEndpoint__ user sel = do
   case withoutDoc (sel (uPerms user)) of
     Nothing -> do
-      logWarnN ("No permission for: " <> describe sel)
+      logWarnN ("Permission denied for: " <> describe sel)
       forbidden
     Just perms -> do
-      logDebugN ("Principal permissions found for: " <> describe sel)
+      logDebugN ("Endpoint access granted for:" <> describe sel)
       pure perms
 
 authorizeSimpleEndpoint :: KnownSymbol tag => User -> SimpleSelector tag -> GerdM ()
