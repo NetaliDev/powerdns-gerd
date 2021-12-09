@@ -25,6 +25,7 @@ build:linux:
     - cabal build powerdns-gerd:test:powerdns-gerd-test
     - cp $(cabal -v0 list-bin powerdns-gerd:test:powerdns-gerd-test) build/test/powerdns-gerd-test
     - cp $(cabal -v0 list-bin powerdns-gerd) build/powerdns-gerd
+    - strip build/powerdns-gerd
     - cp test/powerdns-gerd.test.conf build/test/powerdns-gerd.test.conf
 
 build:linux:static:
@@ -54,6 +55,7 @@ build:linux:static:
     - cp .ci/static.cabal.project cabal.project.local
     - cabal build powerdns-gerd:exe:powerdns-gerd
     - cp $(cabal -v0 list-bin powerdns-gerd) build/powerdns-gerd
+    - strip build/powerdns-gerd
 
 testExampleConfig:
   stage: test
