@@ -212,7 +212,7 @@ configSpec = sectionsSpec "top-level" $ do
   cfgListenAddress <- reqSection' "listenAddress" hostPrefSpec "The IP address the proxy will bind on"
   cfgListenPort <- reqSection "listenPort" "The TCP port the proxy will bind on"
   cfgUsers <- reqSection' "users" (listSpec userSpec) "API users"
-  cfgDefaultPerms <- optSectionDefault' allForbidden "defaultPerms" permsSpec "Default permissions. If a specific permission is not set under a user, If unset, all endpoints except API listing are forbidden by default."
+  cfgDefaultPerms <- optSectionDefault' allForbidden "defaultPermissions" permsSpec "Default permissions. If a specific permission is not set under a user, If unset, all endpoints except API listing are forbidden by default."
   pure Config{..}
 
 allForbidden :: Perms
