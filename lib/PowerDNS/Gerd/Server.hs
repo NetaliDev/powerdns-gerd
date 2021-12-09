@@ -35,11 +35,11 @@ import           Servant.Server.Generic (genericServeTWithContext)
 import           UnliftIO (TVar, liftIO, readTVarIO)
 import qualified UnliftIO.Exception as E
 
+import           Control.Applicative ((<|>))
 import           PowerDNS.Gerd.Config (Config(..))
+import           PowerDNS.Gerd.Permission.Types
 import           PowerDNS.Gerd.Server.Endpoints
 import           PowerDNS.Gerd.Types
-import           PowerDNS.Gerd.Permission.Types
-import Control.Applicative ((<|>))
 
 type Logger = Loc -> LogSource -> LogLevel -> LogStr -> IO ()
 
@@ -113,31 +113,32 @@ authHandler cfg = mkAuthHandler handler
 
 loadDefaults :: Perms -> Perms -> Perms
 loadDefaults def x =
-  Perms { permApiVersions = go permApiVersions
-        , permServerList = go permServerList
-        , permServerView = go permServerView
-        , permSearch = go permSearch
-        , permFlushCache = go permFlushCache
-        , permStatistics = go permStatistics
-        , permZoneCreate = go permZoneCreate
-        , permZoneList = go permZoneList
-        , permZoneView = go permZoneView
-        , permZoneUpdate = go permZoneUpdate
+  Perms { permApiVersions       = go permApiVersions
+        , permServerList        = go permServerList
+        , permServerView        = go permServerView
+        , permSearch            = go permSearch
+        , permFlushCache        = go permFlushCache
+        , permStatistics        = go permStatistics
+        , permZoneCreate        = go permZoneCreate
+        , permZoneList          = go permZoneList
+        , permZoneView          = go permZoneView
+        , permZoneUpdate        = go permZoneUpdate
         , permZoneUpdateRecords = go permZoneUpdateRecords
-        , permZoneDelete = go permZoneDelete
-        , permZoneTriggerAxfr = go permZoneTriggerAxfr
-        , permZoneGetAxfr = go permZoneGetAxfr
-        , permZoneNotifySlaves = go permZoneNotifySlaves
-        , permZoneRectify = go permZoneRectify
-        , permZoneMetadata = go permZoneMetadata
-        , permZoneCryptokeys = go permZoneCryptokeys
-        , permTSIGKeyList = go permTSIGKeyList
-        , permTSIGKeyCreate = go permTSIGKeyCreate
-        , permTSIGKeyView = go permTSIGKeyView
-        , permTSIGKeyUpdate = go permTSIGKeyUpdate
-        , permTSIGKeyDelete = go permTSIGKeyDelete
+        , permZoneDelete        = go permZoneDelete
+        , permZoneTriggerAxfr   = go permZoneTriggerAxfr
+        , permZoneGetAxfr       = go permZoneGetAxfr
+        , permZoneNotifySlaves  = go permZoneNotifySlaves
+        , permZoneRectify       = go permZoneRectify
+        , permZoneMetadata      = go permZoneMetadata
+        , permZoneCryptokeys    = go permZoneCryptokeys
+        , permTSIGKeyList       = go permTSIGKeyList
+        , permTSIGKeyCreate     = go permTSIGKeyCreate
+        , permTSIGKeyView       = go permTSIGKeyView
+        , permTSIGKeyUpdate     = go permTSIGKeyUpdate
+        , permTSIGKeyDelete     = go permTSIGKeyDelete
         }
   where
+    go :: (Perms -> WithDoc (Maybe t) s) -> WithDoc (Maybe t) s
     go s = WithDoc (withoutDoc (s x) <|> withoutDoc (s def))
 
 type CtxtList = AuthHandler Request User ': '[]
