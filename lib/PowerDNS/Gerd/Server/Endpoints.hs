@@ -164,7 +164,9 @@ guardedZones user = PDNS.ZonesAPI
                          nam <- PDNS.zone_name z `notePanic` "missing zone name"
                          perms <- authorizeEndpoint__ user permZoneUpdateRecords
                          domTyPats <- recordUpdatePats perms srv nam
-                         filterZoneMaybe domTyPats z
+                         case domTyPats of
+                           [] -> pure Nothing
+                           _  -> Just <$> filterZone domTyPats z
                      ) zs
             Unfiltered -> pure zs
 
@@ -264,14 +266,6 @@ runProxy act = do
 
 showT :: Show a => a -> T.Text
 showT = T.pack . show
-
--- | Version of 'filterZone' that produces Nothing if no RRSets are left.
-filterZoneMaybe :: [DomTyPat] -> PDNS.Zone -> GerdM (Maybe PDNS.Zone)
-filterZoneMaybe pats zone = do
-  z <- filterZone pats zone
-  if (null (PDNS.zone_rrsets z))
-    then pure Nothing
-    else pure (Just z)
 
 (<+>) :: T.Text -> T.Text -> T.Text
 l <+> r = l <> " " <> r
