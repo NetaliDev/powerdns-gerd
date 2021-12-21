@@ -1,3 +1,9 @@
+-- |
+-- Module: PowerDNS.Gerd.CmdConfig
+-- Description: Config Commands
+--
+-- This module defines the implementation of the @config-help@ and @config-validate@ subcommands of powerdns-gerd.
+--
 module PowerDNS.Gerd.CmdConfig
   ( runConfigValidate
   , runConfigHelp

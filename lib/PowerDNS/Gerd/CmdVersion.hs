@@ -1,3 +1,9 @@
+-- |
+-- Module: PowerDNS.Gerd.CmdVersion
+-- Description: Version Command
+--
+-- This module defines the implementation of the @version@ subcommand of powerdns-gerd.
+--
 {-# LANGUAGE TemplateHaskell #-}
 module PowerDNS.Gerd.CmdVersion
   ( runVersion

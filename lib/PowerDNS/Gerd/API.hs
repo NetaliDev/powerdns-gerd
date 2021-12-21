@@ -1,3 +1,9 @@
+-- |
+-- Module: PowerDNS.Gerd.API
+-- Description: Servant API for Gerd
+--
+-- This module defines a Servant Generics based API endpoint description that structurally matches the @powerdns@ API.
+--
 {-# LANGUAGE DataKinds     #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TypeFamilies  #-}

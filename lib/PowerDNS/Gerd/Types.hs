@@ -1,3 +1,9 @@
+-- |
+-- Module: PowerDNS.Gerd.Types
+-- Description: Gerd types
+--
+-- This module defines the primary 'GerdM' monad and other globally used types.
+--
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module PowerDNS.Gerd.Types
   ( GerdM(..)

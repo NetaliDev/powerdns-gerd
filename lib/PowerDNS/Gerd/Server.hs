@@ -1,3 +1,10 @@
+-- |
+-- Module: PowerDNS.Gerd.Server
+-- Description: Defines the WAI interface for the powerdns-gerd server
+--
+-- This module defines a WAI 'Application' builder which also handles
+-- user authentication via libsodium.,
+--
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}

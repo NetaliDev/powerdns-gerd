@@ -1,3 +1,9 @@
+-- |
+-- Module: PowerDNS.Gerd.User.Types
+-- Description: Definition for user types
+--
+-- This module defines types for API user types.
+--
 module PowerDNS.Gerd.User.Types
   ( User(..)
   , Username(..)

@@ -1,3 +1,10 @@
+-- |
+-- Module: PowerDNS.Gerd.Options
+-- Description: Runtime option parser
+--
+-- This module defines the option parser to handle the various runtime flags and
+-- commands that powerdns-accepts.
+--
 module PowerDNS.Gerd.Options
   ( Command(..)
   , ServerOpts(..)

@@ -1,3 +1,9 @@
+-- |
+-- Module: PowerDNS.Gerd.CmdServer
+-- Description: Server Command
+--
+-- This module defines the implementation of the @server@ subcommand of powerdns-gerd.
+--
 {-# LANGUAGE OverloadedStrings #-}
 module PowerDNS.Gerd.CmdServer
   ( runServer

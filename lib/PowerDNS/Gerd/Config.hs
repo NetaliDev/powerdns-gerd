@@ -1,3 +1,9 @@
+-- |
+-- Module: PowerDNS.Gerd.Config
+-- Description: Config loading and specification
+--
+-- This module contains the config format specification and loading code.
+--
 {-# LANGUAGE ApplicativeDo     #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}

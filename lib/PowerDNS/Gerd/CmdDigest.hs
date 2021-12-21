@@ -1,3 +1,9 @@
+-- |
+-- Module: PowerDNS.Gerd.CmdServer
+-- Description: Digest Command
+--
+-- This module defines the implementation of the @digest@ subcommand of powerdns-gerd.
+--
 module PowerDNS.Gerd.CmdDigest
   ( runDigest
   )

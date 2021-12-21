@@ -1,3 +1,9 @@
+-- |
+-- Module: PowerDNS.Gerd.Permission
+-- Description: Permission enforcement functions
+--
+-- This module defines utilities to enforce permission tokens based on server, zone and domain patterns.
+--
 {-# LANGUAGE OverloadedStrings #-}
 module PowerDNS.Gerd.Permission
   ( module PowerDNS.Gerd.Permission.Types

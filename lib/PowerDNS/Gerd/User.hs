@@ -1,3 +1,9 @@
+-- |
+-- Module: PowerDNS.Gerd.User
+-- Description: Authorization for users
+--
+-- This module implements the cryptographic authentication of users
+--
 module PowerDNS.Gerd.User
   ( User(..)
   , Username(..)

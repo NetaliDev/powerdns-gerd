@@ -1,3 +1,10 @@
+-- |
+-- Module: PowerDNS.Gerd.Server.Endpoints
+-- Description: Endpoints of the Gerd Proxy
+--
+-- This module defines the endpoint handlers that implement the authorization
+-- and forwarding of powerdns-gerd.
+--
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeOperators     #-}
 module PowerDNS.Gerd.Server.Endpoints

@@ -1,3 +1,9 @@
+-- |
+-- Module: PowerDNS.Gerd.Permission.Types
+-- Description: Definition for permission types
+--
+-- This module defines types and some utilities for permissions.
+--
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE OverloadedStrings   #-}
