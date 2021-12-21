@@ -12,6 +12,7 @@ module PowerDNS.Gerd.Permission
   , matchingSrv
   , matchingZone
 
+  , domPatWorksInside
   -- * Pattern matchers
   , matchesDomTyPat
   , matchesDomPat
@@ -27,6 +28,17 @@ import qualified PowerDNS.API as PDNS
 import           PowerDNS.Gerd.Permission.Types
 import           PowerDNS.Gerd.Utils
 
+domPatWorksInside :: DomPat -> DomainLabels -> Bool
+domPatWorksInside (DomPat x) (DomainLabels y) = go (reverse x) (reverse y)
+  where
+    go :: [DomLabelPat] -> [T.Text] -> Bool
+    go [DomGlobStar] _ = True
+    go [] []           = True
+    go [] _ls          = False
+    go p  []           = True
+    go (p:ps) (l:ls)   = patternMatches l p && go ps ls
+
+
 matchesDomPat :: DomainLabels -> DomPat -> Bool
 matchesDomPat (DomainLabels x) (DomPat y) = go (reverse x) (reverse y)
   where
@@ -37,10 +49,10 @@ matchesDomPat (DomainLabels x) (DomPat y) = go (reverse x) (reverse y)
     go _ls  [DomGlobStar] = True
     go (l:ls) (p:ps)      = patternMatches l p && go ls ps
 
-    patternMatches :: T.Text -> DomLabelPat -> Bool
-    patternMatches _l DomGlob       = True
-    patternMatches l (DomLiteral p) = l == p
-    patternMatches _l DomGlobStar   = error "patternMatches: impossible! DomGlobStar in the middle"
+patternMatches :: T.Text -> DomLabelPat -> Bool
+patternMatches _l DomGlob       = True
+patternMatches l (DomLiteral p) = l == p
+patternMatches _l DomGlobStar   = error "patternMatches: impossible! DomGlobStar in the middle"
 
 matchesRecTyPat :: PDNS.RecordType -> RecTyPat -> Bool
 matchesRecTyPat _ AnyRecordType = True

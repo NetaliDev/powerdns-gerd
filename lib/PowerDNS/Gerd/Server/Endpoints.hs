@@ -167,13 +167,18 @@ guardedZones user = PDNS.ZonesAPI
         zs <- runProxy (PDNS.listZones srv zone dnssec)
         case mode of
             Filtered   -> do
+              perms <- authorizeEndpoint__ user permZoneUpdateRecords
               wither (\z -> do
                          nam <- PDNS.zone_name z `notePanic` "missing zone name"
-                         perms <- authorizeEndpoint__ user permZoneUpdateRecords
+                         zon <- parseZone nam
                          domTyPats <- recordUpdatePats perms srv nam
-                         case domTyPats of
+                         let matching = [ domPat | (domPat, _) <- domTyPats, domPat `domPatWorksInside` (getZone zon) ]
+                         case matching of
                            [] -> pure Nothing
-                           _  -> Just <$> filterZone domTyPats z
+                           xs  -> do
+                             logDebugN ("Displaying zone " <> nam <> " because of matching record update permissions:")
+                             traverse_ (liftIO . print) matching
+                             Just <$> filterZone domTyPats z
                      ) zs
             Unfiltered -> pure zs
 
