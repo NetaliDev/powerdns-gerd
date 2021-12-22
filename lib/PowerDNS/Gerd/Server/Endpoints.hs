@@ -128,7 +128,7 @@ authorizeEndpoint__ user sel = do
       logWarnN ("Permission denied for: " <> describe sel)
       forbidden
     Just perms -> do
-      logDebugN ("Endpoint access granted for:" <> describe sel)
+      logDebugN ("Endpoint access granted for: " <> describe sel)
       pure perms
 
 authorizeSimpleEndpoint :: KnownSymbol tag => User -> SimpleSelector tag -> GerdM ()
