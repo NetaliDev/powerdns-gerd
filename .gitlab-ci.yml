@@ -40,7 +40,7 @@ build:linux:static:
   artifacts:
     paths:
       - build/powerdns-gerd
-  image: registry.gitlab.com/wobcom/haskell/powerdns-gerd:pdns-service
+  image: registry.gitlab.com/wobcom/haskell/powerdns-gerd:builder
   before_script:
     - source /root/.ghcup/env
   script:
