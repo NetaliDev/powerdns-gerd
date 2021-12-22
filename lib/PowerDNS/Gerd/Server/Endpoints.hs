@@ -52,10 +52,8 @@ server = GuardedAPI
   , tsigkeys   = genericServerT . guardedTSIGKeys
   }
 
-
 wither :: Applicative f => (a -> f (Maybe b)) -> [a] -> f [b]
 wither f t = catMaybes <$> traverse f t
-
 
 -- | Ensure the user has sufficient permissions for this record update
 validateRecordUpdate :: [DomTyPat] -> PDNS.RRSet -> GerdM ()
@@ -193,7 +191,7 @@ guardedVersions user = PDNS.VersionsAPI
 guardedServers :: User -> PDNS.ServersAPI AsGerd
 guardedServers user = PDNS.ServersAPI
   { PDNS.apiListServers = do
-      authorizeEndpoint__ user permServerList
+      authorizeSimpleEndpoint user permServerList
       runProxy PDNS.listServers
 
   , PDNS.apiGetServer   = \srv -> do
