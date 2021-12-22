@@ -191,12 +191,27 @@ guardedVersions user = PDNS.VersionsAPI
   }
 
 guardedServers :: User -> PDNS.ServersAPI AsGerd
-guardedServers _ = PDNS.ServersAPI
-  { PDNS.apiListServers = const0 forbidden
-  , PDNS.apiGetServer   = const1 forbidden
-  , PDNS.apiSearch      = const4 forbidden
-  , PDNS.apiFlushCache  = const2 forbidden
-  , PDNS.apiStatistics  = const3 forbidden
+guardedServers user = PDNS.ServersAPI
+  { PDNS.apiListServers = do
+      authorizeEndpoint__ user permServerList
+      runProxy PDNS.listServers
+
+  , PDNS.apiGetServer   = \srv -> do
+      authorizeSrvEndpoint user permServerView srv
+      runProxy (PDNS.getServer srv)
+
+  , PDNS.apiSearch      = \srv str num lim -> do
+      authorizeSrvEndpoint user permSearch srv
+      runProxy (PDNS.search srv str num lim)
+
+  , PDNS.apiFlushCache  = \srv dom -> do
+      authorizeSrvEndpoint user permFlushCache srv
+      runProxy (PDNS.flushCache srv dom)
+
+  , PDNS.apiStatistics  = \srv nam ring -> do
+      authorizeSrvEndpoint user permStatistics srv
+      runProxy (PDNS.statistics srv nam ring)
+
   }
 
 guardedZones :: User -> PDNS.ZonesAPI AsGerd
@@ -251,30 +266,73 @@ guardedZones user = PDNS.ZonesAPI
     }
 
 guardedCryptokeys :: User -> PDNS.CryptokeysAPI AsGerd
-guardedCryptokeys _ = PDNS.CryptokeysAPI
-    { PDNS.apiListCryptokeys  = const2 forbidden
-    , PDNS.apiCreateCryptokey = const3 forbidden
-    , PDNS.apiGetCryptokey    = const3 forbidden
-    , PDNS.apiUpdateCryptokey = const4 forbidden
-    , PDNS.apiDeleteCryptokey = const3 forbidden
+guardedCryptokeys user = PDNS.CryptokeysAPI
+    { PDNS.apiListCryptokeys  = \srv zone -> do
+        authorizeZoneEndpoint user permZoneCryptokeys srv zone
+        runProxy (PDNS.listCryptoKeys srv zone)
+
+    , PDNS.apiCreateCryptokey = \srv zone key -> do
+        authorizeZoneEndpoint user permZoneCryptokeys srv zone
+        runProxy (PDNS.createCryptokey srv zone key)
+
+    , PDNS.apiGetCryptokey    = \srv zone keyId -> do
+        authorizeZoneEndpoint user permZoneCryptokeys srv zone
+        runProxy (PDNS.getCryptokey srv zone keyId)
+
+    , PDNS.apiUpdateCryptokey = \srv zone keyId key -> do
+        authorizeZoneEndpoint user permZoneCryptokeys srv zone
+        runProxy (PDNS.updateCryptokey srv zone keyId key)
+
+    , PDNS.apiDeleteCryptokey = \srv zone keyId -> do
+        authorizeZoneEndpoint user permZoneCryptokeys srv zone
+        runProxy (PDNS.deleteCryptokey srv zone keyId)
     }
 
 guardedMetadata :: User -> PDNS.MetadataAPI AsGerd
-guardedMetadata _ = PDNS.MetadataAPI
-  { PDNS.apiListMetadata   = const2 forbidden
-  , PDNS.apiCreateMetadata = const3 forbidden
-  , PDNS.apiGetMetadata    = const3 forbidden
-  , PDNS.apiUpdateMetadata = const4 forbidden
-  , PDNS.apiDeleteMetadata = const3 forbidden
+guardedMetadata user = PDNS.MetadataAPI
+  { PDNS.apiListMetadata   = \srv zone -> do
+        authorizeZoneEndpoint user permZoneMetadata srv zone
+        runProxy (PDNS.listMetadata srv zone)
+
+  , PDNS.apiCreateMetadata = \srv zone meta -> do
+        authorizeZoneEndpoint user permZoneMetadata srv zone
+        runProxy (PDNS.createMetadata srv zone meta)
+
+  , PDNS.apiGetMetadata    = \srv zone kind -> do
+        authorizeZoneEndpoint user permZoneMetadata srv zone
+        runProxy (PDNS.getMetadata srv zone kind)
+
+  , PDNS.apiUpdateMetadata = \srv zone kind meta -> do
+        authorizeZoneEndpoint user permZoneMetadata srv zone
+        runProxy (PDNS.updateMetadata srv zone kind meta)
+
+  , PDNS.apiDeleteMetadata = \srv zone kind -> do
+        authorizeZoneEndpoint user permZoneMetadata srv zone
+        runProxy (PDNS.deleteMetadata srv zone kind)
+
   }
 
 guardedTSIGKeys :: User -> PDNS.TSIGKeysAPI AsGerd
-guardedTSIGKeys _ = PDNS.TSIGKeysAPI
-  { PDNS.apiListTSIGKeys  = const1 forbidden
-  , PDNS.apiCreateTSIGKey = const2 forbidden
-  , PDNS.apiGetTSIGKey    = const2 forbidden
-  , PDNS.apiUpdateTSIGKey = const3 forbidden
-  , PDNS.apiDeleteTSIGKey = const2 forbidden
+guardedTSIGKeys user = PDNS.TSIGKeysAPI
+  { PDNS.apiListTSIGKeys  = \srv -> do
+        authorizeSrvEndpoint user permTSIGKeyList srv
+        runProxy (PDNS.listTSIGKeys srv)
+
+  , PDNS.apiCreateTSIGKey = \srv key -> do
+        authorizeSrvEndpoint user permTSIGKeyCreate srv
+        runProxy (PDNS.createTSIGKey srv key)
+
+  , PDNS.apiGetTSIGKey    = \srv keyId -> do
+        authorizeSrvEndpoint user permTSIGKeyView srv
+        runProxy (PDNS.getTSIGKey srv keyId)
+
+  , PDNS.apiUpdateTSIGKey = \srv keyId key -> do
+        authorizeSrvEndpoint user permTSIGKeyUpdate srv
+        runProxy (PDNS.updateTSIGKey srv keyId key)
+
+  , PDNS.apiDeleteTSIGKey = \srv keyId -> do
+        authorizeSrvEndpoint user permTSIGKeyDelete srv
+        runProxy (PDNS.deleteTSIGKey srv keyId)
   }
 
 -- | Runs a ClientM action and throws client errors back as server errors.
