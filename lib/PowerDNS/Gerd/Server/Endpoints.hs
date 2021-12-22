@@ -141,10 +141,8 @@ authorizeSrvEndpoint user sel srv = do
 -- - match the server name
 -- - match the zone
 -- - have a matching record type pattern that occurs inside the zone
-filteredZone :: User -> T.Text -> PDNS.Zone -> GerdM (Maybe PDNS.Zone)
-filteredZone user srv zone = do
-    perms <- authorizeEndpoint__ user permZoneUpdateRecords
-
+filteredZone :: [Authorization DomTyPat DomPat] -> T.Text -> PDNS.Zone -> GerdM (Maybe PDNS.Zone)
+filteredZone perms srv zone = do
     nam <- PDNS.zone_name zone `notePanic` "missing zone name"
     zone' <- parseZone nam
     let pats = authToken <$> matchingZone srv zone' perms
@@ -217,8 +215,11 @@ guardedZones user = PDNS.ZonesAPI
     { PDNS.apiListZones     = \srv zone dnssec -> do
         mode <- authorizeSrvEndpoint user permZoneList srv
         zs <- runProxy (PDNS.listZones srv zone dnssec)
+
         case mode of
-            Filtered   -> wither (filteredZone user srv) zs
+            Filtered   -> do
+              perms <- authorizeEndpoint__ user permZoneUpdateRecords
+              wither (filteredZone perms srv) zs
             Unfiltered -> pure zs
 
     , PDNS.apiCreateZone    = \srv rrset zone -> do
@@ -229,7 +230,9 @@ guardedZones user = PDNS.ZonesAPI
         perm <- authorizeZoneEndpoint user permZoneView srv zone
         z <- runProxy (PDNS.getZone srv zone rrs)
         case perm of
-            Filtered   -> maybe forbidden pure =<< filteredZone user srv z
+            Filtered   -> do
+              perms <- authorizeEndpoint__ user permZoneUpdateRecords
+              maybe forbidden pure =<< filteredZone perms srv z
             Unfiltered -> pure z
 
     , PDNS.apiDeleteZone    = \srv zone -> do
