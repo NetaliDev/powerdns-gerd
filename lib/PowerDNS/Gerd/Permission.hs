@@ -36,7 +36,7 @@ domPatWorksInside (DomPat x) (DomainLabels y) = go (reverse x) (reverse y)
     go [DomGlobStar] _ = True
     go [] []           = True
     go [] _ls          = False
-    go p  []           = True
+    go _p []           = True
     go (p:ps) (l:ls)   = patternMatches l p && go ps ls
 
 
@@ -93,6 +93,7 @@ rrsetMatchesDomTyPat pats rrset = do
 pprDomTyPat :: DomTyPat -> T.Text
 pprDomTyPat (dom, ty) = pprDomPat dom <> " " <> pprRecTyPat ty
 
+pprRecTyPat :: RecTyPat -> T.Text
 pprRecTyPat AnyRecordType = "(any)"
 pprRecTyPat (AnyOf xs)    = "(" <> T.intercalate ", " (showT <$> xs) <> ")"
 
