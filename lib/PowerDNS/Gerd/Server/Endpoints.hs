@@ -137,10 +137,8 @@ authorizeSrvEndpoint user sel srv = do
   perms <- authorizeEndpoint__ user sel
   handleAuthRes1 (matchingSrv srv perms)
 
--- | Get all 'DomTyPat' from the specified authorization items that
--- - match the server name
--- - match the zone
--- - have a matching record type pattern that occurs inside the zone
+-- | Given a list of patterns, if no pattern is applicable to this zone, return Nothing.
+-- Otherwise return the Zone with rrsets filtered to those we have matching patterns for.
 filteredZone :: [Authorization DomTyPat DomPat] -> T.Text -> PDNS.Zone -> GerdM (Maybe PDNS.Zone)
 filteredZone perms srv zone = do
     nam <- PDNS.zone_name zone `notePanic` "missing zone name"
@@ -153,7 +151,7 @@ filteredZone perms srv zone = do
                  pure Nothing
         _  -> do
             logDebugN ("Displaying zone " <> nam <> " because of matching record update permissions:")
-            traverse_ (liftIO . print) matching
+            traverse_ (logDebugN . show) matching
             Just <$> fz matching
   where
     -- | Given some elaborated domain permissions, filter out all RRSets for which we do not have matching domain permissions for.
