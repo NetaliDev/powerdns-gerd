@@ -17,7 +17,6 @@ module PowerDNS.Gerd.Utils
   , parseAbsDomain
   , parseAbsDomainLabels
   , parseDomPat
-  , logFilter
   , quoted
   , ourVersion
   , runLog
@@ -119,14 +118,6 @@ isLetDigUnd c = isAsciiLetter c || isDigit c || (c == '_')
 isLetDigUndHyp :: Char -> Bool
 isLetDigUndHyp c = isLetDigUnd c || c == '-'
 
-logFilter :: Int -> LogSource -> LogLevel -> Bool
-logFilter logVerbosity
-    | logVerbosity <= 0 = \_ _ -> False
-    | otherwise = \_ lvl -> lvl >= verbosity
-    where
-    verbosity = levels !! (logVerbosity + 1)
-    levels = LevelError : LevelWarn : LevelInfo : repeat LevelDebug
-
 quoted :: T.Text -> T.Text
 quoted x = "\"" <> x <> "\""
 
@@ -144,7 +135,17 @@ ourVersion = unlines [ "version: " <> showVersion version
               | otherwise   = ""
 
 runLog :: MonadIO m => Int -> LoggingT m a -> m a
-runLog verbosity = runStdoutLoggingT . filterLogger (logFilter verbosity)
+runLog n = runStdoutLoggingT . filterLogger logFilter
+  where
+    logFilter :: LogSource -> LogLevel -> Bool
+    logFilter _src lvl | n <= 0
+                       = False
+
+                       | otherwise
+                       = lvl >= verbosity
+      where
+        verbosity = levels !! (n + 1)
+        levels = LevelError : LevelWarn : LevelInfo : repeat LevelDebug
 
 showT :: Show a => a -> T.Text
 showT = T.pack . show
