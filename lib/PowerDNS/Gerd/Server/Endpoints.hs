@@ -19,12 +19,12 @@ import           PowerDNS.Gerd.User (User(..))
 
 import           Control.Monad (when)
 import           Control.Monad.IO.Class (liftIO)
-import           Control.Monad.Logger (logDebugN, logErrorN, logWarnN)
+import           Control.Monad.Logger (logDebugN, logErrorN, logInfoN, logWarnN)
 import           Control.Monad.Reader (ask)
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as BSL
 import           Data.Foldable (toList, traverse_)
-import           Data.Maybe (catMaybes, fromMaybe)
+import           Data.Maybe (catMaybes)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
@@ -126,7 +126,7 @@ authorizeEndpoint__ user sel = do
       logWarnN ("Permission denied for: " <> describe sel)
       forbidden
     Just perms -> do
-      logDebugN ("Endpoint access granted for: " <> describe sel)
+      logInfoN ("Endpoint access granted for: " <> describe sel)
       pure perms
 
 authorizeSimpleEndpoint :: KnownSymbol tag => User -> SimpleSelector tag -> GerdM ()
@@ -151,13 +151,13 @@ filteredZone perms srv zone = do
                  pure Nothing
         _  -> do
             logDebugN ("Displaying zone " <> nam <> " because of matching record update permissions:")
-            traverse_ (logDebugN . show) matching
-            Just <$> fz matching
+            traverse_ (logDebugN . pprDomTyPat) matching
+            Just <$> fz nam matching
   where
-    -- | Given some elaborated domain permissions, filter out all RRSets for which we do not have matching domain permissions for.
-    fz :: [DomTyPat] -> GerdM PDNS.Zone
-    fz pats = do
-        logDebugN ("Filtering zone: " <> fromMaybe "<unnamed" (PDNS.zone_name zone))
+    -- | Filter all RRSets for which we have matching domain permissions.
+    fz :: T.Text -> [DomTyPat] -> GerdM PDNS.Zone
+    fz nam pats = do
+        logDebugN ("Filtering zone: " <> nam)
 
         filtered <- maybe (pure Nothing)
                         (fmap Just . wither go)
@@ -174,7 +174,7 @@ filteredZone perms srv zone = do
                          pure Nothing
                 xs -> do logDebugN ("Allowing record " <> pprRRSet rr)
                          logDebugN ("Matching pattern:")
-                         traverse_ (logDebugN . showT) xs
+                         traverse_ (logDebugN . pprDomTyPat) xs
                          pure (Just rr)
 
 guardedVersions :: User -> PDNS.VersionsAPI AsGerd
@@ -348,9 +348,6 @@ runProxy act = do
     responseFToServerErr :: ResponseF BSL.ByteString -> ServerError
     responseFToServerErr (Response (Status code message) headers _version body)
       = ServerError code (BS8.unpack message) body (toList headers)
-
-showT :: Show a => a -> T.Text
-showT = T.pack . show
 
 (<+>) :: T.Text -> T.Text -> T.Text
 l <+> r = l <> " " <> r

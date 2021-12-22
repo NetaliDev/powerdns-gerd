@@ -21,6 +21,7 @@ module PowerDNS.Gerd.Utils
   , quoted
   , ourVersion
   , runLog
+  , showT
   )
 where
 
@@ -144,3 +145,6 @@ ourVersion = unlines [ "version: " <> showVersion version
 
 runLog :: MonadIO m => Int -> LoggingT m a -> m a
 runLog verbosity = runStdoutLoggingT . filterLogger (logFilter verbosity)
+
+showT :: Show a => a -> T.Text
+showT = T.pack . show

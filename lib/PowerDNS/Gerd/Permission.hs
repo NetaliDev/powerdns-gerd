@@ -18,6 +18,7 @@ module PowerDNS.Gerd.Permission
   , matchesDomPat
   , matchesRecTyPat
   , rrsetMatchesDomTyPat
+  , pprDomTyPat
   )
 where
 
@@ -87,3 +88,19 @@ rrsetMatchesDomTyPat pats rrset = do
   pure (any (\(domPat, recTyPat) -> labels `matchesDomPat` domPat
                                  && ty `matchesRecTyPat` recTyPat
             ) pats)
+
+
+pprDomTyPat :: DomTyPat -> T.Text
+pprDomTyPat (dom, ty) = pprDomPat dom <> " " <> pprRecTyPat ty
+
+pprRecTyPat AnyRecordType = "(any)"
+pprRecTyPat (AnyOf xs)    = "(" <> T.intercalate ", " (showT <$> xs) <> ")"
+
+pprDomPat :: DomPat -> T.Text
+pprDomPat (DomPat patterns) = mconcat (pprLabelPattern <$> patterns)
+
+pprLabelPattern :: DomLabelPat -> T.Text
+pprLabelPattern (DomLiteral t) = t <> "."
+pprLabelPattern DomGlob        = "*."
+pprLabelPattern DomGlobStar    = "**."
+
