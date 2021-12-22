@@ -31,6 +31,15 @@ import qualified PowerDNS.API as PDNS
 import           PowerDNS.Gerd.Permission.Types
 import           PowerDNS.Gerd.Utils
 
+-- | Test whether a 'DomPat' is a pattern under the given zone.
+--
+-- @
+--   foo.*.bar.  works inside          quux.bar.
+--   foo.bar.    works inside          bar.
+--   foo.bar.    works inside          bar.
+--   bar.        works inside          bar.
+--   foo.bar.    does not work inside  quux.
+-- @
 domPatWorksInside :: DomPat -> DomainLabels -> Bool
 domPatWorksInside (DomPat x) (DomainLabels y) = go (reverse x) (reverse y)
   where
@@ -41,7 +50,7 @@ domPatWorksInside (DomPat x) (DomainLabels y) = go (reverse x) (reverse y)
     go _p []           = True
     go (p:ps) (l:ls)   = patternMatches l p && go ps ls
 
-
+-- | Test whether a given domain matches a 'DomPat'
 matchesDomPat :: DomainLabels -> DomPat -> Bool
 matchesDomPat (DomainLabels x) (DomPat y) = go (reverse x) (reverse y)
   where
@@ -52,11 +61,13 @@ matchesDomPat (DomainLabels x) (DomPat y) = go (reverse x) (reverse y)
     go _ls  [DomGlobStar] = True
     go (l:ls) (p:ps)      = patternMatches l p && go ls ps
 
+-- | Test whether a single 'DomLabelPat' matches a label pattern
 patternMatches :: T.Text -> DomLabelPat -> Bool
 patternMatches _l DomGlob       = True
 patternMatches l (DomLiteral p) = l == p
 patternMatches _l DomGlobStar   = error "patternMatches: impossible! DomGlobStar in the middle"
 
+-- | Test whether the 'RecTyPat' matches the given 'RecordType'
 matchesRecTyPat :: PDNS.RecordType -> RecTyPat -> Bool
 matchesRecTyPat _ AnyRecordType = True
 matchesRecTyPat rt (AnyOf xs)   = rt `elem` xs
@@ -65,12 +76,14 @@ matchesDomTyPat :: DomainLabels -> PDNS.RecordType -> DomTyPat -> Bool
 matchesDomTyPat wantedDom wantedTy (dom, ty) = matchesDomPat wantedDom dom
                                             && matchesRecTyPat wantedTy ty
 
+-- | Filter permissions matching the specified server name.
 matchingSrv :: T.Text -> [Authorization tok pat] -> [Authorization tok pat]
 matchingSrv wantedSrv perms
     = [ e| e@(Authorization srv _dom _res) <- perms
       , wantedSrv == srv
       ]
 
+-- | Filter permissions matching the specified zone and server name.
 matchingZone :: T.Text -> ZoneId -> [Authorization tok DomPat] -> [Authorization tok DomPat]
 matchingZone wantedSrv (ZoneId wantedZone) perms
     = [ e | e@(Authorization srv dom _tok) <- perms
