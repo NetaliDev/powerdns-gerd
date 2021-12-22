@@ -74,12 +74,12 @@ domPatP = DomPat <$> ((:) <$> domLabelPatInitP <*> many domLabelPatP)
 
 domLabelPatInitP :: ATT.Parser DomLabelPat
 domLabelPatInitP = asum [ DomLiteral <$> label <* ATT.string "."
-                               , DomGlobStar <$ ATT.string "**."
-                               , DomGlob <$ ATT.string "*." ]
+                        , DomGlobStar <$ ATT.string "**."
+                        , DomGlob <$ ATT.string "*." ]
 
 domLabelPatP :: ATT.Parser DomLabelPat
 domLabelPatP = asum [ DomLiteral <$> label <* ATT.string "."
-                           , DomGlob <$ ATT.string "*." ]
+                    , DomGlob <$ ATT.string "*." ]
 
 absDomainP :: ATT.Parser T.Text
 absDomainP = (<>) <$> relDomainP <*> ATT.string "."
@@ -92,31 +92,31 @@ relDomainP = T.intercalate "." <$> relDomainLabelsP
 
 label :: ATT.Parser T.Text
 label = do
-  i <- letDig1
-  m <- optional letDigHyp1
+  i <- letDigUnd1
+  m <- optional letDigHypUnd1
   case m of
     Nothing -> pure i
     Just r | T.last r /= '-'
            -> pure (i <> r)
            | otherwise
-           -> ((i <> r) <>) <$> letDig1
+           -> ((i <> r) <>) <$> letDigUnd1
 
 -- | Parse 1 or more letters or digits
-letDig1 :: ATT.Parser T.Text
-letDig1 = ATT.takeWhile1 isLetDig
+letDigUnd1 :: ATT.Parser T.Text
+letDigUnd1 = ATT.takeWhile1 isLetDigUnd
 
 -- | Parse 1 or more letters, digits or hyphens
-letDigHyp1 :: ATT.Parser T.Text
-letDigHyp1 = ATT.takeWhile1 isLetDigHyp
+letDigHypUnd1 :: ATT.Parser T.Text
+letDigHypUnd1 = ATT.takeWhile1 isLetDigUndHyp
 
 isAsciiLetter :: Char -> Bool
 isAsciiLetter c = isAsciiLower c || isAsciiUpper c
 
-isLetDig :: Char -> Bool
-isLetDig c = isAsciiLetter c || isDigit c || (c == '_')
+isLetDigUnd :: Char -> Bool
+isLetDigUnd c = isAsciiLetter c || isDigit c || (c == '_')
 
-isLetDigHyp :: Char -> Bool
-isLetDigHyp c = isLetDig c || c == '-'
+isLetDigUndHyp :: Char -> Bool
+isLetDigUndHyp c = isLetDigUnd c || c == '-'
 
 logFilter :: Int -> LogSource -> LogLevel -> Bool
 logFilter logVerbosity
@@ -125,18 +125,6 @@ logFilter logVerbosity
     where
     verbosity = levels !! (logVerbosity + 1)
     levels = LevelError : LevelWarn : LevelInfo : repeat LevelDebug
-
-pprDomPat :: DomPat -> T.Text
-pprDomPat (DomPat patterns) = mconcat (pprLabelPattern <$> patterns)
-
-pprLabelPattern :: DomLabelPat -> T.Text
-pprLabelPattern (DomLiteral t) = t <> "."
-pprLabelPattern DomGlob        = "*."
-pprLabelPattern DomGlobStar    = "**."
-
-
-showT :: Show a => a -> T.Text
-showT = T.pack . show
 
 quoted :: T.Text -> T.Text
 quoted x = "\"" <> x <> "\""
