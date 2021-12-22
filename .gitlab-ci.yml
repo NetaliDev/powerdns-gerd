@@ -41,6 +41,8 @@ build:linux:static:
     paths:
       - build/powerdns-gerd
   image: registry.gitlab.com/wobcom/haskell/powerdns-gerd:pdns-service
+  before_script:
+    - source /root/.ghcup/env
   script:
     - mkdir -p /root/cabal/
     - mkdir -p .cabal-store
