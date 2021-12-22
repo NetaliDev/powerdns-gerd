@@ -12,12 +12,14 @@ module PowerDNS.Gerd.Permission
   , matchingSrv
   , matchingZone
 
-  , domPatWorksInside
   -- * Pattern matchers
   , matchesDomTyPat
   , matchesDomPat
   , matchesRecTyPat
   , rrsetMatchesDomTyPat
+
+  -- * Other utilities
+  , domPatWorksInside
   , pprDomTyPat
   )
 where
