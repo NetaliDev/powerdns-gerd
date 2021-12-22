@@ -139,10 +139,49 @@ authorizeSrvEndpoint user sel srv = do
   perms <- authorizeEndpoint__ user sel
   handleAuthRes1 (matchingSrv srv perms)
 
-recordUpdatePats :: [Authorization DomTyPat DomPat] -> T.Text -> T.Text -> GerdM [DomTyPat]
-recordUpdatePats perms srv zone = do
-  zone' <- parseZone zone
-  pure (authToken <$> matchingZone srv zone' perms)
+-- | Get all 'DomTyPat' from the specified authorization items that
+-- - match the server name
+-- - match the zone
+-- - have a matching record type pattern that occurs inside the zone
+filteredZone :: User -> T.Text -> PDNS.Zone -> GerdM (Maybe PDNS.Zone)
+filteredZone user srv zone = do
+    perms <- authorizeEndpoint__ user permZoneUpdateRecords
+
+    nam <- PDNS.zone_name zone `notePanic` "missing zone name"
+    zone' <- parseZone nam
+    let pats = authToken <$> matchingZone srv zone' perms
+        matching = filter (\(domPat, _) -> domPat `domPatWorksInside` (getZone zone')) pats
+
+    case matching of
+        [] -> do logDebugN ("Hiding zone " <> nam <> " due to lack of record permissions")
+                 pure Nothing
+        _  -> do
+            logDebugN ("Displaying zone " <> nam <> " because of matching record update permissions:")
+            traverse_ (liftIO . print) matching
+            Just <$> filterZone matching zone
+  where
+    -- | Given some elaborated domain permissions, filter out all RRSets for which we do not have matching domain permissions for.
+    filterZone :: [DomTyPat] -> PDNS.Zone -> GerdM PDNS.Zone
+    filterZone pats zone = do
+        logDebugN ("Filtering zone: " <> fromMaybe "<unnamed" (PDNS.zone_name zone))
+
+        filtered <- maybe (pure Nothing)
+                        (fmap Just . wither go)
+                        (PDNS.zone_rrsets zone)
+        pure $ zone { PDNS.zone_rrsets = filtered }
+      where
+        go rr = do
+            dom <- parseDom (PDNS.rrset_name rr)
+            let ty = PDNS.rrset_type rr
+            let matching = filter (matchesDomTyPat dom ty) pats
+
+            case matching of
+                [] -> do logDebugN ("Hiding record: " <> pprRRSet rr)
+                         pure Nothing
+                xs -> do logDebugN ("Allowing record " <> pprRRSet rr)
+                         logDebugN ("Matching pattern:")
+                         traverse_ (logDebugN . showT) xs
+                         pure (Just rr)
 
 guardedVersions :: User -> PDNS.VersionsAPI AsGerd
 guardedVersions user = PDNS.VersionsAPI
@@ -166,20 +205,7 @@ guardedZones user = PDNS.ZonesAPI
         mode <- authorizeSrvEndpoint user permZoneList srv
         zs <- runProxy (PDNS.listZones srv zone dnssec)
         case mode of
-            Filtered   -> do
-              perms <- authorizeEndpoint__ user permZoneUpdateRecords
-              wither (\z -> do
-                         nam <- PDNS.zone_name z `notePanic` "missing zone name"
-                         zon <- parseZone nam
-                         domTyPats <- recordUpdatePats perms srv nam
-                         let matching = [ domPat | (domPat, _) <- domTyPats, domPat `domPatWorksInside` (getZone zon) ]
-                         case matching of
-                           [] -> pure Nothing
-                           xs  -> do
-                             logDebugN ("Displaying zone " <> nam <> " because of matching record update permissions:")
-                             traverse_ (liftIO . print) matching
-                             Just <$> filterZone domTyPats z
-                     ) zs
+            Filtered   -> wither (filteredZone user srv) zs
             Unfiltered -> pure zs
 
     , PDNS.apiCreateZone    = \srv rrset zone -> do
@@ -190,11 +216,7 @@ guardedZones user = PDNS.ZonesAPI
         perm <- authorizeZoneEndpoint user permZoneView srv zone
         z <- runProxy (PDNS.getZone srv zone rrs)
         case perm of
-            Filtered   -> do
-              domTyPats <- do
-                perms <- authorizeEndpoint__ user permZoneUpdateRecords
-                recordUpdatePats perms srv zone
-              filterZone domTyPats z
+            Filtered   -> maybe forbidden pure =<< filteredZone user srv z
             Unfiltered -> pure z
 
     , PDNS.apiDeleteZone    = \srv zone -> do
@@ -288,28 +310,6 @@ bracket t = "[" <> t <> "]"
 pprRRSet :: PDNS.RRSet -> T.Text
 pprRRSet rr = bracket (showT (PDNS.rrset_type rr) <+> PDNS.rrset_name rr)
 
--- | Given some elaborated domain permissions, filter out all RRSets for which we do not have matching domain permissions for.
-filterZone :: [DomTyPat] -> PDNS.Zone -> GerdM PDNS.Zone
-filterZone pats zone = do
-    logDebugN ("Filtering zone: " <> fromMaybe "<unnamed" (PDNS.zone_name zone))
-
-    filtered <- maybe (pure Nothing)
-                      (fmap Just . wither go)
-                      (PDNS.zone_rrsets zone)
-    pure $ zone { PDNS.zone_rrsets = filtered }
-  where
-    go rr = do
-      dom <- parseDom (PDNS.rrset_name rr)
-      let ty = PDNS.rrset_type rr
-      let matching = filter (matchesDomTyPat dom ty) pats
-
-      case matching of
-        [] -> do logDebugN ("Hiding record: " <> pprRRSet rr)
-                 pure Nothing
-        xs -> do logDebugN ("Allowing record " <> pprRRSet rr)
-                 logDebugN ("Matching pattern:")
-                 traverse_ (logDebugN . showT) xs
-                 pure (Just rr)
 forbidden :: GerdM a
 forbidden = throwIO err403
 
