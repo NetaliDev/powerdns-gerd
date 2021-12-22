@@ -156,11 +156,11 @@ filteredZone user srv zone = do
         _  -> do
             logDebugN ("Displaying zone " <> nam <> " because of matching record update permissions:")
             traverse_ (liftIO . print) matching
-            Just <$> filterZone matching zone
+            Just <$> go matching
   where
     -- | Given some elaborated domain permissions, filter out all RRSets for which we do not have matching domain permissions for.
-    filterZone :: [DomTyPat] -> PDNS.Zone -> GerdM PDNS.Zone
-    filterZone pats zone = do
+    go :: [DomTyPat] -> GerdM PDNS.Zone
+    go pats = do
         logDebugN ("Filtering zone: " <> fromMaybe "<unnamed" (PDNS.zone_name zone))
 
         filtered <- maybe (pure Nothing)
