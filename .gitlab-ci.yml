@@ -50,11 +50,12 @@ build:linux:static:
   script:
     - mkdir -p /root/cabal/
     - mkdir -p .cabal-store
-    - ln .cabal-store -s /root/cabal/store
+    - mv .cabal-store /root/cabal/store
     - mkdir build
     - cp .ci/static.cabal.project cabal.project.local
     - cabal build powerdns-gerd:exe:powerdns-gerd
     - cp $(cabal -v0 list-bin powerdns-gerd) build/powerdns-gerd
+    - mv /root/cabal/store .cabal-store
     - strip build/powerdns-gerd
 
 testExampleConfig:
