@@ -225,12 +225,6 @@ guardedZones user = PDNS.ZonesAPI
 
     , PDNS.apiUpdateRecords = \srv zone rrs -> do
         domTyPats <- authorizeZoneEndpoints user permZoneUpdateRecords srv zone
-        when (null (PDNS.rrsets rrs)) $ do
-          logDebugN "zone record update: Record has no RRsets"
-
-          -- Ensure we do not forward requests without RRSets to the upstream API.
-          forbidden
-
         traverse_ (validateRecordUpdate domTyPats) (PDNS.rrsets rrs)
 
         runProxy (PDNS.updateRecords srv zone rrs)
