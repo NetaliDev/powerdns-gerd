@@ -1,13 +1,13 @@
 cabal-version:      3.0
 name:               powerdns-gerd
-version:            0.1.0.0
+version:            0.1.1
 maintainer:         dminuoso+git@icloud.com
 
 extra-source-files: CHANGELOG.md
 
 common all
     build-depends:    base ^>= { 4.12.0.0, 4.14.1.0 }
-                    , powerdns ^>= 0.2.0
+                    , powerdns ^>= 0.2.1
     ghc-options:      -Wall -Werror=incomplete-patterns -fno-warn-unticked-promoted-constructors -fno-warn-unused-do-bind
     default-language: Haskell2010
 
