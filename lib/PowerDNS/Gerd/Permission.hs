@@ -94,7 +94,7 @@ matchingZone wantedSrv (ZoneId wantedZone) perms
 -- | Test whether a given RRSet matches any of the specified 'DomTyPat' patterns.
 rrsetMatchesDomTyPat :: [DomTyPat] -> PDNS.RRSet -> Either T.Text Bool
 rrsetMatchesDomTyPat pats rrset = do
-  let nam = PDNS.rrset_name rrset
+  let nam = PDNS.original (PDNS.rrset_name rrset)
       ty = PDNS.rrset_type rrset
 
   labels <- first (const ("failed to parse rrset: " <> nam))

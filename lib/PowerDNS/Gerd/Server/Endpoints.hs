@@ -59,17 +59,18 @@ wither f t = catMaybes <$> traverse f t
 validateRecordUpdate :: [DomTyPat] -> PDNS.RRSet -> GerdM ()
 validateRecordUpdate pats rrset = do
     let ty = PDNS.rrset_type rrset
-    dom <- parseDom (PDNS.rrset_name rrset)
+    parsed <- parseDom domain
 
-    let matching = filter (matchesDomTyPat dom ty) pats
+    let matching = filter (matchesDomTyPat parsed ty) pats
     when (null matching) $ do
-      logWarnN ("No matching permissions for: " <> domain)
+      logWarnN ("No matching permissions for: " <> domainBrack)
       forbidden
 
-    logDebugN ("Allowed update on " <> domain <> " by:")
+    logDebugN ("Allowed update on " <> domainBrack <> " by:")
     traverse_ (logDebugN . showT) matching
   where
-    domain = "<" <> PDNS.rrset_name rrset <> ">"
+    domain = PDNS.original (PDNS.rrset_name rrset)
+    domainBrack = "<" <> domain <> ">"
 
 parseZone :: T.Text -> GerdM ZoneId
 parseZone t = either (\err -> unprocessableWhy ("Cannot parse zone: " <> T.pack err))
@@ -141,7 +142,7 @@ authorizeSrvEndpoint user sel srv = do
 -- Otherwise return the Zone with rrsets filtered to those we have matching patterns for.
 filteredZone :: [Authorization DomTyPat DomPat] -> T.Text -> PDNS.Zone -> GerdM (Maybe PDNS.Zone)
 filteredZone perms srv zone = do
-    nam <- PDNS.zone_name zone `notePanic` "missing zone name"
+    nam <- PDNS.original <$> (PDNS.zone_name zone `notePanic` "missing zone name")
     zone' <- parseZone nam
     let pats = authToken <$> matchingZone srv zone' perms
         matching = filter (\(domPat, _) -> domPat `domPatWorksInside` (getZone zone')) pats
@@ -165,7 +166,7 @@ filteredZone perms srv zone = do
         pure $ zone { PDNS.zone_rrsets = filtered }
       where
         go rr = do
-            dom <- parseDom (PDNS.rrset_name rr)
+            dom <- parseDom (PDNS.original (PDNS.rrset_name rr))
             let ty = PDNS.rrset_type rr
             let matching = filter (matchesDomTyPat dom ty) pats
 
@@ -356,7 +357,7 @@ bracket :: T.Text -> T.Text
 bracket t = "[" <> t <> "]"
 
 pprRRSet :: PDNS.RRSet -> T.Text
-pprRRSet rr = bracket (showT (PDNS.rrset_type rr) <+> PDNS.rrset_name rr)
+pprRRSet rr = bracket (showT (PDNS.rrset_type rr) <+> PDNS.original (PDNS.rrset_name rr))
 
 forbidden :: GerdM a
 forbidden = throwIO err403
