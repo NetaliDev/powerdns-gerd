@@ -26,6 +26,7 @@ import           Test.Tasty
 import           Test.Tasty.HUnit (testCase)
 
 import           Control.Monad.Logger (defaultOutput, runLoggingT)
+import           PowerDNS.API.Zones
 import           PowerDNS.Client
 import           UnliftIO (IOMode(AppendMode), SomeException, bracket, catch,
                            displayException, hClose, openFile)
@@ -50,7 +51,7 @@ unsafeCleanZones te = do
   zones <- unsafeRunUpstream (listZones "localhost" Nothing Nothing) te
   for_ zones $ \zone -> do
     name <- note "missing zone name" (zone_name zone)
-    unsafeRunUpstream (deleteZone "localhost" name) te
+    unsafeRunUpstream (deleteZone "localhost" (original name)) te
 
 srvName :: T.Text
 srvName = "localhost"
@@ -169,7 +170,7 @@ testDomainMatrix te = testGroup "updating records" $
         deleteRecords ty na = () <$ updateRecords srvName zone (RRSets [changed])
             where
                 changed :: RRSet
-                changed = RRSet { rrset_name = na
+                changed = RRSet { rrset_name = mkCIText na
                                 , rrset_type = ty
                                 , rrset_ttl = 1234
                                 , rrset_changetype = Just Delete
@@ -229,7 +230,7 @@ withPresetZones te t = withResource unsafeMakeZones unsafeDeleteZones (const t)
     unsafeMakeZones = for_ byZones $ \z -> do
         let zoneName = fst3 (z !! 0)
             zone :: Zone
-            zone = empty { zone_name = Just zoneName
+            zone = empty { zone_name = Just (mkCIText zoneName)
                          , zone_kind = Just Native
                          , zone_type = Just "zone"
                          , zone_rrsets = Just $ makeRecords =<< (snd3 <$> z)
@@ -243,7 +244,7 @@ withPresetZones te t = withResource unsafeMakeZones unsafeDeleteZones (const t)
                   , (AAAA, "::1")
                   , (TXT, "\"some txt\"") ]
 
-      pure $ RRSet { rrset_name = na
+      pure $ RRSet { rrset_name = mkCIText na
                    , rrset_ttl = 86003
                    , rrset_type = ty
                    , rrset_changetype = Nothing
