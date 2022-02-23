@@ -6,10 +6,6 @@ variables:
   GIT_STRATEGY: clone
 
 build:linux:
-  cache:
-    key: powerdns-gerd-ci
-    paths:
-      - dist-newstyle/
   stage: build
   tags:
     - haskell
@@ -29,30 +25,21 @@ build:linux:
     - cp test/powerdns-gerd.test.conf build/test/powerdns-gerd.test.conf
 
 build:linux:static:
-  cache:
-    key: powerdns-gerd-static
-    paths:
-      - dist-newstyle/
-      - .cabal-store/
   stage: build
   tags:
     - docker
   artifacts:
     paths:
-      - build/powerdns-gerd
+      - arts/powerdns-gerd
   image: registry.gitlab.com/wobcom/haskell/powerdns-gerd:builder
   before_script:
     - source /root/.ghcup/env
   script:
-    - mkdir -p /root/cabal/
-    - mkdir -p .cabal-store
-    - mv .cabal-store /root/cabal/store
-    - mkdir build
+    - mkdir arts
     - cp .ci/static.cabal.project cabal.project.local
     - cabal build powerdns-gerd:exe:powerdns-gerd
-    - cp $(cabal -v0 list-bin powerdns-gerd) build/powerdns-gerd
-    - mv /root/cabal/store .cabal-store
-    - strip build/powerdns-gerd
+    - cp $(cabal -v0 list-bin powerdns-gerd) arts/powerdns-gerd
+    - strip arts/powerdns-gerd
 
 testExampleConfig:
   stage: test
@@ -73,9 +60,6 @@ test:
   services:
     - name: registry.gitlab.com/wobcom/haskell/powerdns-gerd:pdns-service
       alias: pdns
-  cache:
-    paths:
-      - dist-newstyle/
   stage: test
   tags:
     - docker
