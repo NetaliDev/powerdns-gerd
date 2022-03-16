@@ -172,7 +172,7 @@ testDomainMatrix te = testGroup "updating records" $
                 changed :: RRSet
                 changed = RRSet { rrset_name = mkCIText na
                                 , rrset_type = ty
-                                , rrset_ttl = 1234
+                                , rrset_ttl = Just 1234
                                 , rrset_changetype = Just Delete
                                 , rrset_records = Just []
                                 , rrset_comments = Just []
@@ -245,7 +245,7 @@ withPresetZones te t = withResource unsafeMakeZones unsafeDeleteZones (const t)
                   , (TXT, "\"some txt\"") ]
 
       pure $ RRSet { rrset_name = mkCIText na
-                   , rrset_ttl = 86003
+                   , rrset_ttl = Just 86003
                    , rrset_type = ty
                    , rrset_changetype = Nothing
                    , rrset_records = Just [Record re False]
