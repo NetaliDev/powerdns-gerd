@@ -17,7 +17,7 @@ common exes
     ghc-options:      -rtsopts -threaded -with-rtsopts=-qg
 
 common warp
-    build-depends:    warp ^>= 3.3.18
+    build-depends:    warp ^>= { 3.3.17, 3.3.18 }
 
 test-suite powerdns-gerd-test
     import:           all, exes, warp
