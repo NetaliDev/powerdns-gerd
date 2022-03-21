@@ -11,6 +11,7 @@ module PowerDNS.Gerd.Config
   ( Config(..)
   , loadConfig
   , configHelp
+  , ApiKeyType(..)
   )
 where
 
@@ -39,11 +40,14 @@ import           UnliftIO (MonadIO, liftIO, throwIO)
 data Config = Config
   { cfgUpstreamApiBaseUrl :: T.Text
   , cfgUpstreamApiKey :: T.Text
+  , cfgUpstreamApiKeyType :: ApiKeyType
   , cfgListenAddress :: HostPreference
   , cfgListenPort :: Word16
   , cfgDefaultPerms :: Perms
   , cfgUsers :: [(Username, User)]
   }
+
+data ApiKeyType = Key | Path
 
 optSectionDefault' :: a -> T.Text -> ValueSpec a -> T.Text -> SectionsSpec a
 optSectionDefault' def sect spec descr = fromMaybe def <$> optSection' sect spec descr
@@ -211,10 +215,15 @@ recordAtomSpec =    A          <$ atomSpec "A"
 hostPrefSpec :: ValueSpec HostPreference
 hostPrefSpec = fromString . T.unpack <$> textSpec
 
+
 configSpec :: ValueSpec Config
 configSpec = sectionsSpec "top-level" $ do
   cfgUpstreamApiBaseUrl <- reqSection "upstreamApiBaseUrl" "The base URL of the upstream PowerDNS API."
-  cfgUpstreamApiKey <- reqSection "upstreamApiKey" "The upstream X-API-Key secret"
+  cfgUpstreamApiKey <- reqSection "upstreamApiKey" "The upstream X-API-Key secret or a path containing that secret."
+  cfgUpstreamApiKeyType <- optSectionDefault' Key "upstreamApiKeyType"
+                                                 ((Key <$ atomSpec "key") <!> (Path <$ atomSpec "path"))
+                                                 "Path to a file containing the upstream X-API-Key secret."
+
   cfgListenAddress <- reqSection' "listenAddress" hostPrefSpec "The IP address the proxy will bind on"
   cfgListenPort <- reqSection "listenPort" "The TCP port the proxy will bind on"
   cfgUsers <- reqSection' "users" (listSpec userSpec) "API users"

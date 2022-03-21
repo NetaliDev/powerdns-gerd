@@ -27,6 +27,7 @@ import qualified Data.ByteString.Lazy as BSL
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import           Data.Text.Encoding.Error (lenientDecode)
+import qualified Data.Text.IO as T
 import           Network.HTTP.Client (newManager)
 import           Network.HTTP.Client.TLS (tlsManagerSettings)
 import           Network.Wai (Request(requestHeaders))
@@ -43,7 +44,7 @@ import           UnliftIO (TVar, liftIO, readTVarIO)
 import qualified UnliftIO.Exception as E
 
 import           Control.Applicative ((<|>))
-import           PowerDNS.Gerd.Config (Config(..))
+import           PowerDNS.Gerd.Config (ApiKeyType(..), Config(..))
 import           PowerDNS.Gerd.Permission.Types
 import           PowerDNS.Gerd.Server.Endpoints
 import           PowerDNS.Gerd.Types
@@ -87,11 +88,19 @@ mkApp cfg = do
   cfg' <- liftIO $ readTVarIO cfg
   url <- liftIO $ parseBaseUrl (T.unpack (cfgUpstreamApiBaseUrl cfg'))
   mgr <- liftIO $ newManager tlsManagerSettings
-  let cenv =  PDNS.applyXApiKey (cfgUpstreamApiKey cfg') (mkClientEnv mgr url)
+  key <- getKey cfg'
+  let cenv =  PDNS.applyXApiKey key (mkClientEnv mgr url)
 
   pure (genericServeTWithContext (toHandler logger (Env cenv))
                                  server
                                  (ourContext cfg))
+
+getKey :: Config -> LoggingT IO T.Text
+getKey cfg = case cfgUpstreamApiKeyType cfg of
+    Key  -> pure buf
+    Path -> liftIO $ T.readFile (T.unpack buf)
+  where
+    buf = cfgUpstreamApiKey cfg
 
 -- | A custom authentication handler as per https://docs.servant.dev/en/stable/tutorial/Authentication.html#generalized-authentication
 authHandler :: TVar Config -> AuthHandler Request User
