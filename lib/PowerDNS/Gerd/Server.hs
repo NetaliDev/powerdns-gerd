@@ -15,7 +15,7 @@ module PowerDNS.Gerd.Server
   )
 where
 
-import           Data.Char (ord)
+import           Data.Char (ord, isSpace)
 
 import           Control.Monad.Logger (Loc, LogLevel, LogSource, LogStr,
                                        LoggingT, askLoggerIO, logError,
@@ -82,6 +82,9 @@ toHandler logger env = Handler . ExceptT . flip runReaderT env . flip runLogging
     prpgSrvErr :: ServerError -> GerdM (Either ServerError a)
     prpgSrvErr = pure . Left
 
+rstrip :: T.Text -> T.Text
+rstrip = T.dropWhileEnd isSpace
+
 mkApp :: TVar Config -> LoggingT IO Application
 mkApp cfg = do
   logger <- askLoggerIO
@@ -98,7 +101,7 @@ mkApp cfg = do
 getKey :: Config -> LoggingT IO T.Text
 getKey cfg = case cfgUpstreamApiKeyType cfg of
     Key  -> pure buf
-    Path -> liftIO $ T.readFile (T.unpack buf)
+    Path -> liftIO $ rstrip <$> T.readFile (T.unpack buf)
   where
     buf = cfgUpstreamApiKey cfg
 
