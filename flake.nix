@@ -16,15 +16,15 @@
 
         haskellPackages = pkgs.haskellPackages;
 
-        jailbreakUnbreak = pkg:
-          pkgs.haskell.lib.doJailbreak (pkg.overrideAttrs (_: { meta = { }; }));
+        dontCheck = pkgs.haskell.lib.dontCheck;
 
         packageName = "powerdns-gerd";
       in {
-        packages.${packageName} =
+        packages.${packageName} = dontCheck (
           haskellPackages.callCabal2nix packageName self {
-            inherit powerdns;
-          };
+            powerdns = powerdns.defaultPackage.${system};
+          }
+        );
 
         defaultPackage = self.packages.${system}.${packageName};
 
