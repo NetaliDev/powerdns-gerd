@@ -156,7 +156,7 @@ recTyPatSpec = namedSpec "record-type-spec" $
              <!> AnyOf <$> oneOrList recordAtomSpec
 
 domPatSpec :: ValueSpec DomPat
-domPatSpec = customSpec "Absolute domain (with trailing dot). A leading wildcard like \"*.foo\" or \"*\" is allowed"
+domPatSpec = customSpec "Absolute domain (with trailing dot). A trailing globstar \"**\" or a wildcard \"*\" in place of a label can be specified."
                             textSpec
                             (first T.pack . parseDomPat)
 
