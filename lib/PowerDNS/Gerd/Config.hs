@@ -17,10 +17,12 @@ where
 
 import           Data.Maybe (fromMaybe)
 import           Data.String (fromString)
+import           Text.Read (readMaybe)
 
 import           Config
 import           Config.Macro
 import           Config.Schema
+import           Data.IP (IPRange)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import qualified Data.Text.IO as T
@@ -39,12 +41,13 @@ import           UnliftIO (MonadIO, liftIO, throwIO)
 
 data Config = Config
   { cfgUpstreamApiBaseUrl :: T.Text
-  , cfgUpstreamApiKey :: T.Text
+  , cfgUpstreamApiKey     :: T.Text
   , cfgUpstreamApiKeyType :: ApiKeyType
-  , cfgListenAddress :: HostPreference
-  , cfgListenPort :: Word16
-  , cfgDefaultPerms :: Perms
-  , cfgUsers :: [(Username, User)]
+  , cfgListenAddress      :: HostPreference
+  , cfgListenPort         :: Word16
+  , cfgDefaultPerms       :: Perms
+  , cfgUsers              :: [(Username, User)]
+  , cfgTrustedProxies     :: [IPRange]
   }
 
 data ApiKeyType = Key | Path
@@ -228,6 +231,8 @@ configSpec = sectionsSpec "top-level" $ do
   cfgListenPort <- reqSection "listenPort" "The TCP port the proxy will bind on"
   cfgUsers <- reqSection' "users" (listSpec userSpec) "API users"
   cfgDefaultPerms <- optSectionDefault' allForbidden "defaultPermissions" permsSpec "Default permissions. If a specific permission is not set under a user, If unset, all endpoints except API listing are forbidden by default."
+  cfgTrustedProxies <- optSectionDefault' [] "trustedProxies" (listSpec iprSpec) "List of networks or IP addresses in which HTTP proxies reside, whose X-Forwarded-Host can be trusted. If a user has allowedFrom configured, and the server is behind a HTTP proxy, you must both configure the proxy to insert a X-Forwarded-For header and list its outbound IP address (or a network matching it) here."
+
   pure Config{..}
 
 allForbidden :: Perms
@@ -264,8 +269,16 @@ userSpec = sectionsSpec "user-spec" $ do
                             (T.encodeUtf8 <$> textSpec)
                             "Argon2id hash of the secret as a string in the original reference format, e.g.: $argon2id$v=19$m=65536,t=3,p=2$c29tZXNhbHQ$RdescudvJCsgt3ub+b+dWRWJTmaaJObG"
   uPerms <- reqSection' "permissions" permsSpec "Permissions for this user"
+  uAllowedFrom <- optSectionDefault' [] "allowedFrom" (listSpec iprSpec) "List of IP addresses or networks the user is allowed to access the API from"
 
   pure (uName, User{..})
+
+iprSpec :: ValueSpec IPRange
+iprSpec = customSpec "IP Adress or range" textSpec go
+  where
+    go x = case readMaybe (T.unpack x) of
+      Nothing  -> Left "failed to parse IP address or range"
+      Just ipr -> Right ipr
 
 loadValueFromFileWithMacros :: ValueSpec a -> FilePath -> IO a
 loadValueFromFileWithMacros spec path =

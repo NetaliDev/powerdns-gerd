@@ -91,4 +91,5 @@ library powerdns-gerd-lib
                     , unliftio ^>= 0.2
                     , unix ^>= 2.7.2
                     , wai ^>= 3.2.3
+                    , iproute ^>= 1.7.12
     hs-source-dirs:  lib
