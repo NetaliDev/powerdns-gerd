@@ -13,8 +13,7 @@ module PowerDNS.Gerd.User
 where
 
 
-import qualified Data.ByteString.Char8    as B8
-import qualified Data.Text                as T
+import qualified Data.ByteString.Char8 as B8
 import           Libsodium
 
 import           PowerDNS.Gerd.User.Types

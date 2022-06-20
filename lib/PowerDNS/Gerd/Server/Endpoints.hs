@@ -15,7 +15,7 @@ where
 import           PowerDNS.Gerd.API
 import           PowerDNS.Gerd.Permission.Types
 import           PowerDNS.Gerd.Types
-import           PowerDNS.Gerd.User (User(..))
+import           PowerDNS.Gerd.User (User(..), Username(..))
 
 import           Control.Monad (when)
 import           Control.Monad.IO.Class (liftIO)
@@ -122,13 +122,17 @@ authorizeZoneEndpoints user sel srv zone = do
 
 authorizeEndpoint__ :: KnownSymbol tag => User -> AnySelector what tag -> GerdM [what]
 authorizeEndpoint__ user sel = do
-  case withoutDoc (sel (uPerms user)) of
-    Nothing -> do
-      logWarnN ("Permission denied for: " <> describe sel)
-      forbidden
-    Just perms -> do
-      logInfoN ("Endpoint access granted for: " <> describe sel)
-      pure perms
+    let meta = pprUser <> " " <> pprSel
+    case withoutDoc (sel (uPerms user)) of
+        Nothing -> do
+            logWarnN ("Permission denied " <> meta)
+            forbidden
+        Just perms -> do
+            logInfoN ("Permission granted " <> meta)
+            pure perms
+  where
+    pprUser = "user=" <> quoted (getUsername (uName user))
+    pprSel = "endpoint=" <> quoted (describe sel)
 
 authorizeSimpleEndpoint :: KnownSymbol tag => User -> SimpleSelector tag -> GerdM ()
 authorizeSimpleEndpoint user sel = () <$ authorizeEndpoint__ user sel
