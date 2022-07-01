@@ -11,8 +11,6 @@
 {-# LANGUAGE TypeOperators       #-}
 module PowerDNS.Gerd.Permission.Types
   ( ZoneId(..)
-  , DomainKind(..)
-  , Domain(..)
   , Perms(..)
   , Authorization(..)
   , Authorization'
@@ -22,13 +20,10 @@ module PowerDNS.Gerd.Permission.Types
   , WithDoc(..)
 
   -- * Pattern types
-  , DomLabelPat(..)
   , DomTyPat
-  , DomPat(..)
   , RecTyPat(..)
 
   -- * Utilities
-  , DomainLabels(..)
   , Filtered(..)
   )
 where
@@ -36,41 +31,17 @@ where
 import           Data.Proxy (Proxy(..))
 import qualified Data.Text as T
 import           GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
+import           Network.DNS.Pattern (Domain, DomainPattern)
 import           PowerDNS.API (RecordType)
 
-data DomainKind = Absolute | Relative
-
-newtype Domain (k :: DomainKind) = Domain
-  { getDomain :: T.Text
-  } deriving Show
-
-instance Eq (Domain k) where
-  Domain x == Domain y = T.toLower x == T.toLower y
-
-newtype ZoneId = ZoneId
-  { getZone :: DomainLabels
-  } deriving (Eq, Ord, Show)
-
-newtype DomainLabels = DomainLabels
-  { getDomainLabels :: [T.Text]
-  } deriving (Eq, Ord, Show)
-
-newtype DomPat = DomPat
-  { getDomainPattern :: [DomLabelPat]
-  } deriving (Eq, Ord, Show)
-
-data DomLabelPat
-  = DomLiteral T.Text
-  | DomGlob -- ^ Represents a single asterisk glob matching any arbitrary domain at a given level.
-  | DomGlobStar -- ^ Represents a double asterisk matching any arbitrary subdomain at a given level.
-  deriving (Eq, Ord, Show)
+newtype ZoneId = ZoneId { getZone :: Domain }
 
 data RecTyPat
   = AnyRecordType
   | AnyOf [RecordType]
   deriving (Eq, Ord, Show)
 
-type DomTyPat = (DomPat, RecTyPat)
+type DomTyPat = (DomainPattern, RecTyPat)
 
 data Filtered = Filtered | Unfiltered
   deriving (Eq, Ord, Show)
@@ -109,34 +80,34 @@ data Perms = Perms
                              `WithDoc` "list zones"
 
   -- Per zone
-  , permZoneView          :: Maybe [Authorization Filtered DomPat]
+  , permZoneView          :: Maybe [Authorization Filtered DomainPattern]
                              `WithDoc` "view a zone"
 
-  , permZoneUpdate        :: Maybe [Authorization' DomPat]
+  , permZoneUpdate        :: Maybe [Authorization' DomainPattern]
                              `WithDoc` "update a zone"
 
-  , permZoneUpdateRecords :: Maybe [Authorization DomTyPat DomPat]
+  , permZoneUpdateRecords :: Maybe [Authorization DomTyPat DomainPattern]
                              `WithDoc` "update a zones records"
 
-  , permZoneDelete        :: Maybe [Authorization' DomPat]
+  , permZoneDelete        :: Maybe [Authorization' DomainPattern]
                              `WithDoc` "delete a zone"
 
-  , permZoneTriggerAxfr   :: Maybe [Authorization' DomPat]
+  , permZoneTriggerAxfr   :: Maybe [Authorization' DomainPattern]
                              `WithDoc` "trigger a zone axfr"
 
-  , permZoneGetAxfr       :: Maybe [Authorization' DomPat]
+  , permZoneGetAxfr       :: Maybe [Authorization' DomainPattern]
                              `WithDoc` "get a zone in axfr format"
 
-  , permZoneNotifySlaves  :: Maybe [Authorization' DomPat]
+  , permZoneNotifySlaves  :: Maybe [Authorization' DomainPattern]
                              `WithDoc` "notify slaves"
 
-  , permZoneRectify       :: Maybe [Authorization' DomPat]
+  , permZoneRectify       :: Maybe [Authorization' DomainPattern]
                              `WithDoc` "rectify a zone"
 
-  , permZoneMetadata      :: Maybe [Authorization' DomPat]
+  , permZoneMetadata      :: Maybe [Authorization' DomainPattern]
                              `WithDoc` "manipulating a zones metadata"
 
-  , permZoneCryptokeys    :: Maybe [Authorization' DomPat]
+  , permZoneCryptokeys    :: Maybe [Authorization' DomainPattern]
                              `WithDoc` "manipulating a zones cryptokeys"
 
   -- TSIG specific

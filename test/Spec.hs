@@ -195,6 +195,8 @@ domainMatrix =
   , ("zone.", "sub.rec3.user1.zone.", Just ("user1", ATXT))
   , ("zone.", "sub.rec4.user1.zone.", Just ("user1", Any))
 
+  -- Try working with wildcard records
+  , ("zone.", "*.rec4.user1.zone.", Just ("user1", Any))
 
   , ("zone.", "rec5.user1.zone.", Just ("user1", ATXT))
   , ("zone.", "rec6.user1.zone.", Just ("user1", Any))

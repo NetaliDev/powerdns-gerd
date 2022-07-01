@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 -- |
 -- Module: PowerDNS.Gerd.Server.Endpoints
 -- Description: Endpoints of the Gerd Proxy
@@ -28,8 +29,9 @@ import           Data.Maybe (catMaybes)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
-
 import           GHC.TypeLits (KnownSymbol)
+import           Network.DNS.Pattern (Domain, DomainPattern, parseAbsDomain,
+                                      patternWorksInside, pprDomain, pprPattern)
 import           Network.HTTP.Types (Status(Status))
 import qualified PowerDNS.API as PDNS
 import qualified PowerDNS.Client as PDNS
@@ -75,12 +77,12 @@ validateRecordUpdate pats rrset = do
 parseZone :: T.Text -> GerdM ZoneId
 parseZone t = either (\err -> unprocessableWhy ("Cannot parse zone: " <> T.pack err))
                       (pure . ZoneId)
-                      (parseAbsDomainLabels t)
+                      (parseAbsDomain t)
 
-parseDom :: T.Text -> GerdM DomainLabels
+parseDom :: T.Text -> GerdM Domain
 parseDom t = either (\err -> unprocessableWhy ("Cannot parse domain: " <> T.pack err))
                     pure
-                    (parseAbsDomainLabels t)
+                    (parseAbsDomain t)
 
 handleAuthRes1 :: (Show pat, Show tok) => [Authorization tok pat] -> GerdM tok
 handleAuthRes1 [] = do
@@ -93,6 +95,12 @@ handleAuthRes1 xs = do
   logWarnN "Multiple matching permissions found"
   traverse_ (logWarnN . showT) xs
   throwIO err500{ errBody = "Multiple matching permissions found" }
+
+instance Show DomainPattern where
+  show = T.unpack . pprPattern
+
+instance Show Domain where
+  show = T.unpack . pprDomain
 
 handleAuthResSome :: (Show pat, Show tok) => [Authorization tok pat] -> GerdM [tok]
 handleAuthResSome [] = do
@@ -108,13 +116,13 @@ type ZoneSelector tok pat tag = AnySelector (Authorization tok pat) tag
 type SimpleSelector tag = AnySelector SimpleAuthorization tag
 type AnySelector what tag = Perms -> Maybe [what] `WithDoc` tag
 
-authorizeZoneEndpoint :: (KnownSymbol tag, Show tok) => User -> ZoneSelector tok DomPat tag -> T.Text -> T.Text -> GerdM tok
+authorizeZoneEndpoint :: (KnownSymbol tag, Show tok) => User -> ZoneSelector tok DomainPattern tag -> T.Text -> T.Text -> GerdM tok
 authorizeZoneEndpoint user sel srv zone = do
   zone' <- parseZone zone
   perms <- authorizeEndpoint__ user sel
   handleAuthRes1 (matchingZone srv zone' perms)
 
-authorizeZoneEndpoints :: (KnownSymbol tag, Show tok) => User -> ZoneSelector tok DomPat tag -> T.Text -> T.Text -> GerdM [tok]
+authorizeZoneEndpoints :: (KnownSymbol tag, Show tok) => User -> ZoneSelector tok DomainPattern tag -> T.Text -> T.Text -> GerdM [tok]
 authorizeZoneEndpoints user sel srv zone = do
   zone' <- parseZone zone
   perms <- authorizeEndpoint__ user sel
@@ -144,12 +152,12 @@ authorizeSrvEndpoint user sel srv = do
 
 -- | Given a list of patterns, if no pattern is applicable to this zone, return Nothing.
 -- Otherwise return the Zone with rrsets filtered to those we have matching patterns for.
-filteredZone :: [Authorization DomTyPat DomPat] -> T.Text -> PDNS.Zone -> GerdM (Maybe PDNS.Zone)
+filteredZone :: [Authorization DomTyPat DomainPattern] -> T.Text -> PDNS.Zone -> GerdM (Maybe PDNS.Zone)
 filteredZone perms srv zone = do
     nam <- PDNS.original <$> (PDNS.zone_name zone `notePanic` "missing zone name")
     zone' <- parseZone nam
     let pats = authToken <$> matchingZone srv zone' perms
-        matching = filter (\(domPat, _) -> domPat `domPatWorksInside` (getZone zone')) pats
+        matching = filter (\(domPat, _) -> domPat `patternWorksInside` getZone zone') pats
 
     case matching of
         [] -> do logDebugN ("Hiding zone " <> nam <> " due to lack of record permissions")

@@ -33,10 +33,11 @@ import qualified Text.PrettyPrint as Pretty
 import           Control.Monad (unless)
 import           Data.Bifunctor (first)
 import qualified Data.Set as S
+import           Network.DNS.Pattern (DomainPattern(..), LabelPattern(..),
+                                      parsePattern)
 import           PowerDNS.API.Zones
 import           PowerDNS.Gerd.Permission
 import           PowerDNS.Gerd.User
-import           PowerDNS.Gerd.Utils
 import           UnliftIO (MonadIO, liftIO, throwIO)
 
 data Config = Config
@@ -68,8 +69,8 @@ srvAuthSpec = (pure <$> permit) <!> oneOrList
   where
     permit = Authorization "localhost" () () <$ atomSpec "permit"
 
-anyDomPat :: DomPat
-anyDomPat = DomPat [DomGlobStar]
+anyDomPat :: DomainPattern
+anyDomPat = DomainPattern [DomGlobStar]
 
 permZoneListSpec :: ValueSpec [Authorization Filtered ()]
 permZoneListSpec = (pure <$> permit) <!> (pure <$> filtered) <!> oneOrList
@@ -82,7 +83,7 @@ permZoneListSpec = (pure <$> permit) <!> (pure <$> filtered) <!> oneOrList
     permit = Authorization "localhost" () Unfiltered <$ atomSpec "permit"
     filtered = Authorization "localhost" () Filtered <$ atomSpec "filtered"
 
-permZoneViewSpec :: ValueSpec [Authorization Filtered DomPat]
+permZoneViewSpec :: ValueSpec [Authorization Filtered DomainPattern]
 permZoneViewSpec = (pure <$> permit) <!> (pure <$> filtered) <!> oneOrList
     (sectionsSpec "perm-zone-view-spec" $ do
         authServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
@@ -93,7 +94,7 @@ permZoneViewSpec = (pure <$> permit) <!> (pure <$> filtered) <!> oneOrList
     permit = Authorization "localhost" anyDomPat Unfiltered <$ atomSpec "permit"
     filtered = Authorization "localhost" anyDomPat Filtered <$ atomSpec "filtered"
 
-permZoneSpec :: ValueSpec [Authorization' DomPat]
+permZoneSpec :: ValueSpec [Authorization' DomainPattern]
 permZoneSpec = (pure <$> permit) <!> oneOrList
     (sectionsSpec "perm-zone-spec" $ do
         authServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
@@ -109,7 +110,7 @@ domTyPatSpec = do
   recTyPat <- reqSection' "types" recTyPatSpec "Matching any of these record types"
   pure (domPat, recTyPat)
 
-permZoneUpdateRecordsSpec :: ValueSpec [Authorization DomTyPat DomPat]
+permZoneUpdateRecordsSpec :: ValueSpec [Authorization DomTyPat DomainPattern]
 permZoneUpdateRecordsSpec = (pure <$> permit) <!> oneOrList
     (sectionsSpec "perm-zone-update-records-spec" $ do
         authServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
@@ -158,10 +159,10 @@ recTyPatSpec = namedSpec "record-type-spec" $
                  AnyRecordType <$ atomSpec "any"
              <!> AnyOf <$> oneOrList recordAtomSpec
 
-domPatSpec :: ValueSpec DomPat
+domPatSpec :: ValueSpec DomainPattern
 domPatSpec = customSpec "Absolute domain (with trailing dot). A trailing globstar \"**\" or a wildcard \"*\" in place of a label can be specified."
                             textSpec
-                            (first T.pack . parseDomPat)
+                            (first T.pack . parsePattern)
 
 recordAtomSpec :: ValueSpec RecordType
 recordAtomSpec =    A          <$ atomSpec "A"

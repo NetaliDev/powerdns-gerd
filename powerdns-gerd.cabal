@@ -92,4 +92,5 @@ library powerdns-gerd-lib
                     , unix ^>= 2.7.2
                     , wai ^>= 3.2.3
                     , iproute ^>= 1.7.12
+                    , dns-patterns ^>= 0.1
     hs-source-dirs:  lib
