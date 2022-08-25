@@ -21,8 +21,11 @@ module PowerDNS.Gerd.Utils
   )
 where
 
-import           Control.Monad.Logger (LogLevel(..), LogSource, LoggingT,
-                                       filterLogger, runStdoutLoggingT)
+import           Control.Concurrent (myThreadId)
+import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.Logger (LogLevel(..), LogSource, LoggingT(..),
+                                       filterLogger, runStdoutLoggingT,
+                                       toLogStr)
 import           Data.Version (showVersion)
 
 import qualified Data.Text as T
@@ -68,8 +71,17 @@ ourVersion = unlines [ "version: " <> showVersion version
         dirty | $(gitDirty) = " (uncommitted files present)"
               | otherwise   = ""
 
+getTid :: MonadIO m => m String
+getTid = drop 9 . show <$> liftIO myThreadId
+
+includeTid :: MonadIO m => LoggingT m a -> LoggingT m a
+includeTid (LoggingT act) = LoggingT $ \logger -> act $ \loc src lvl str -> do
+  tid <- getTid
+  let pref = toLogStr ("[" <> tid <> "] ")
+  logger loc src lvl (pref <> str)
+
 runLog :: MonadIO m => Int -> LoggingT m a -> m a
-runLog n = runStdoutLoggingT . filterLogger logFilter
+runLog n = runStdoutLoggingT . includeTid . filterLogger logFilter
   where
     logFilter :: LogSource -> LogLevel -> Bool
     logFilter _src lvl | n <= 0

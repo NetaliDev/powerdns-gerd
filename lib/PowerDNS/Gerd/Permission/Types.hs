@@ -31,7 +31,8 @@ where
 import           Data.Proxy (Proxy(..))
 import qualified Data.Text as T
 import           GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
-import           Network.DNS.Pattern (Domain, DomainPattern)
+import           Network.DNS (Domain)
+import           Network.DNS.Pattern (DomainPattern)
 import           PowerDNS.API (RecordType)
 
 newtype ZoneId = ZoneId { getZone :: Domain }

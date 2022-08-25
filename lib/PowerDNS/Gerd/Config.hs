@@ -33,10 +33,17 @@ import qualified Text.PrettyPrint as Pretty
 import           Control.Monad (unless)
 import           Data.Bifunctor (first)
 import qualified Data.Set as S
-import           Network.DNS.Pattern (DomainPattern(..), LabelPattern(..),
-                                      parsePattern)
+import           Network.DNS.Pattern (parsePattern)
+import           Network.DNS.Pattern.Internal (DomainPattern(..),
+                                               LabelPattern(..))
 import           PowerDNS.API.Zones
-import           PowerDNS.Gerd.Permission
+import           PowerDNS.Gerd.Permission.Types (Authorization(..),
+                                                 Authorization',
+                                                 Authorization'', DomTyPat,
+                                                 Filtered(..), Perms(..),
+                                                 RecTyPat(..),
+                                                 SimpleAuthorization(..),
+                                                 WithDoc(WithDoc), describe)
 import           PowerDNS.Gerd.User
 import           UnliftIO (MonadIO, liftIO, throwIO)
 
@@ -270,7 +277,7 @@ userSpec = sectionsSpec "user-spec" $ do
                             (T.encodeUtf8 <$> textSpec)
                             "Argon2id hash of the secret as a string in the original reference format, e.g.: $argon2id$v=19$m=65536,t=3,p=2$c29tZXNhbHQ$RdescudvJCsgt3ub+b+dWRWJTmaaJObG"
   uPerms <- reqSection' "permissions" permsSpec "Permissions for this user"
-  uAllowedFrom <- optSectionDefault' [] "allowedFrom" (listSpec iprSpec) "List of IP addresses or networks the user is allowed to access the API from"
+  uAllowedFrom <- optSectionDefault' Nothing "allowedFrom" (Just <$> listSpec iprSpec) "List of IP addresses or networks the user is allowed to access the API from"
 
   pure (uName, User{..})
 

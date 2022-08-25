@@ -12,9 +12,9 @@ module PowerDNS.Gerd.User.Types
   )
 where
 
-import qualified Data.ByteString.Char8          as B8
+import qualified Data.ByteString.Char8 as B8
 import           Data.IP
-import qualified Data.Text                      as T
+import qualified Data.Text as T
 import           PowerDNS.Gerd.Permission.Types
 
 newtype Username = Username { getUsername :: T.Text }
@@ -24,7 +24,7 @@ data User = User
   { uName        :: Username
   , uPassHash    :: B8.ByteString
   , uPerms       :: Perms
-  , uAllowedFrom :: [IPRange]
+  , uAllowedFrom :: Maybe [IPRange]
   }
 
 data MemLimit = MemMin

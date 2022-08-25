@@ -25,8 +25,9 @@ where
 
 import           Data.Bifunctor (first)
 import qualified Data.Text as T
-import           Network.DNS.Pattern (Domain(..), DomainPattern, matchesPattern,
-                                      parseAbsDomain, pprPattern)
+import           Network.DNS (parseAbsDomain)
+import           Network.DNS.Internal (Domain(..))
+import           Network.DNS.Pattern (DomainPattern, matchesPattern, pprPattern)
 import qualified PowerDNS.API as PDNS
 import           PowerDNS.Gerd.Permission.Types
 import           PowerDNS.Gerd.Utils

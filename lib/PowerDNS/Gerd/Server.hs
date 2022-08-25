@@ -15,15 +15,15 @@ module PowerDNS.Gerd.Server
   )
 where
 
-import           Control.Monad (unless)
+import           Control.Monad (when)
 import           Data.Char (isSpace, ord)
-import           Data.Foldable (find)
-import           Data.Functor ((<&>))
+import           Data.Foldable (for_)
 import           Text.Read (readMaybe)
 
 import           Control.Monad.Logger (Loc, LogLevel, LogSource, LogStr,
                                        LoggingT, askLoggerIO, logDebugN,
-                                       logError, logWarnN, runLoggingT)
+                                       logError, logWarnN, runLoggingT,
+                                       toLogStr)
 import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Except (ExceptT(ExceptT))
 import           Control.Monad.Trans.Reader (runReaderT)
@@ -37,6 +37,7 @@ import qualified Data.Text.IO as T
 
 import           Network.HTTP.Client (newManager)
 import           Network.HTTP.Client.TLS (tlsManagerSettings)
+import           Network.HTTP.Types (Header)
 import           Network.Wai (Request(requestHeaders), remoteHost)
 import qualified PowerDNS.Client as PDNS
 import           PowerDNS.Gerd.User
@@ -55,6 +56,8 @@ import           PowerDNS.Gerd.Config (ApiKeyType(..), Config(..))
 import           PowerDNS.Gerd.Permission.Types
 import           PowerDNS.Gerd.Server.Endpoints
 import           PowerDNS.Gerd.Types
+import           PowerDNS.Gerd.Utils (quoted)
+import           UnliftIO.IORef
 
 type Logger = Loc -> LogSource -> LogLevel -> LogStr -> IO ()
 
@@ -101,10 +104,20 @@ mkApp cfg = do
   key <- getKey cfg'
   let cenv =  PDNS.applyXApiKey key (mkClientEnv mgr url)
 
-  context <- mkContext cfg
-  pure (genericServeTWithContext (toHandler logger (Env cenv))
+  uref <- newIORef (error "User not initialized yet" :: User)
+  context <- mkContext cfg uref
+
+  let logger' = loggerAddUser uref logger
+  pure (genericServeTWithContext (toHandler logger' (Env cenv))
                                  server
                                  context)
+
+loggerAddUser :: IORef User -> Logger -> Logger
+loggerAddUser uref logger = \loc src lvl str -> do
+    user <- readIORef uref
+    logger loc src lvl (str <> toLogStr (pprUser user))
+  where
+    pprUser u = " user=" <> quoted (getUsername (uName u))
 
 getKey :: Config -> LoggingT IO T.Text
 getKey cfg = case cfgUpstreamApiKeyType cfg of
@@ -113,11 +126,87 @@ getKey cfg = case cfgUpstreamApiKeyType cfg of
   where
     buf = cfgUpstreamApiKey cfg
 
+note :: Monad m => Maybe a -> m a -> m a
+note (Just a) _  = pure a
+note Nothing err = err
+
+showT :: Show a => a -> T.Text
+showT = T.pack . show
+
+prepend :: T.Text -> T.Text -> T.Text
+prepend = (<>)
+
+(<+>) :: T.Text -> T.Text -> T.Text
+l <+> r = l <> " " <> r
+
+authorizeClientIP :: Request
+                  -> [IP.IPRange] -- ^ Allowed client IPs
+                  -> [IP.IPRange] -- ^ Trusted proxies
+                  -> LoggingT Handler ()
+authorizeClientIP req allowedClients trustedProxies = do
+    (clientIP, _port)  <- IP.fromSockAddr (remoteHost req)
+                            `note` authFailure "Failed to convert client IP"
+    logDebugN ("Immediate client has IP address" <+> showT clientIP)
+    fs <- getForwardedFor req
+    case fs of
+        Just (realIP:rest) -> do
+            let chain = clientIP : reverse rest
+            logDebugN $ "Proxies detected:" <> mconcat (prepend " proxy=" . showT <$> chain)
+                                        <+> "realip=" <> showT realIP
+            authorizeProxies trustedProxies chain
+
+            if any (ipMatches realIP) allowedClients
+                then logDebugN "Client allowed because the first X-Forwarded-For address matches allowFrom"
+                else authFailure $ "First X-Forwarded-For address" <+> showT realIP
+                                 <+> "does not match any entry from allowedFrom"
+
+        Just [] -> authFailure "X-Forwarded-For is present but empty"
+        Nothing ->
+            if any (ipMatches clientIP) allowedClients
+                then logDebugN "Client allowed because its IP address matches allowFrom"
+                else authFailure "Client IP does not match any entry from allowedFrom"
+
+authorizeProxies :: [IP.IPRange] -> [IP.IP] -> LoggingT Handler ()
+authorizeProxies trustedProxies = go
+  where
+    go []     = pure ()
+    go (x:xs) | any (ipMatches x) trustedProxies
+              = go xs
+              | otherwise
+              = authFailure ("The proxy " <> T.pack (show x) <> " is not trusted")
+
+ipMatches :: IP.IP -> IP.IPRange -> Bool
+ipMatches (IP.IPv4 i) (IP.IPv4Range r) = i `IP.isMatchedTo` r
+ipMatches (IP.IPv6 i) (IP.IPv6Range r) = i `IP.isMatchedTo` r
+ipMatches _ _                          = False
+
+getForwardedFor :: Request -> LoggingT Handler (Maybe [IP.IP])
+getForwardedFor req = do
+    hdrs <- traverse selectXFF (requestHeaders req)
+    case hdrs of
+        [] -> pure Nothing
+        _  -> pure (Just (mconcat hdrs))
+
+  where
+    selectXFF :: Header -> LoggingT Handler [IP.IP]
+    selectXFF ("X-Forwarded-For", x) = traverse parseIP (T.splitOn ", " (decodeLenient x))
+    selectXFF _                      = pure []
+
+    parseIP :: T.Text -> LoggingT Handler IP.IP
+    parseIP rip = case readMaybe (T.unpack rip) of
+        Nothing -> throw400 ("Bad X-Forwarded-For header. Invalid IP address: " <> t2bsl rip)
+        Just ip -> pure ip
+
+t2bsl :: T.Text -> BSL.ByteString
+t2bsl = BSL.fromStrict . T.encodeUtf8
+
 -- | A custom authentication handler as per https://docs.servant.dev/en/stable/tutorial/Authentication.html#generalized-authentication
-authHandler :: TVar Config -> LoggingT IO (AuthHandler Request User)
-authHandler cfg = do
+authHandler :: TVar Config -> IORef User -> LoggingT IO (AuthHandler Request User)
+authHandler cfg uref = do
     logger <- askLoggerIO
-    pure $ mkAuthHandler (\req -> runLoggingT (handler req) logger)
+    pure $ mkAuthHandler (\req -> do
+                             runLoggingT (handler req) logger
+                         )
   where
     handler :: Request -> LoggingT Handler User
     handler req = do
@@ -126,79 +215,41 @@ authHandler cfg = do
         cfg' <- readTVarIO cfg
         apiKey <- xApiKey `note401` "Missing API key"
         case BS.split (fromIntegral (ord ':')) apiKey of
-            [name, hash] -> do let nam = decodeLenient name
-                               user <- case lookup (Username nam) (cfgUsers cfg') of
-                                  Nothing -> authFailure ("User " <> nam <> " not found")
-                                  Just u -> pure u
+            [name, hash] -> do
+              let nam = decodeLenient name
+              user <- lookup (Username nam) (cfgUsers cfg')
+                      `note` authFailure ("User " <> nam <> " not found")
 
-                               allowed <- allowedIP req user
-                               unless allowed $
-                                 authFailure ("User " <> nam <> " denied because its client IP did not match any of their allowFrom entries")
+              logDebugN ("User" <+> quoted (getUsername (uName user)) <+> "found")
+              for_ (uAllowedFrom user) $ \allowedIPs -> do
+                authorizeClientIP req allowedIPs (cfgTrustedProxies cfg')
 
-                               valid <- liftIO (authenticate user hash)
-                               unless valid $ do
-                                 authFailure ("User " <> nam <> " specified an incorrect password")
+              valid <- liftIO (authenticate user hash)
+              when (not valid) $ do
+                  authFailure ("User " <> nam <> " specified an incorrect password")
 
-                               pure (user { uPerms = loadDefaults (cfgDefaultPerms cfg') (uPerms user) })
+              let user' = user { uPerms = loadDefaults (cfgDefaultPerms cfg') (uPerms user) }
+              writeIORef uref user'
+              pure user'
 
             _            -> throw400 "Invalid X-API-Key syntax"
 
     note401 :: Maybe a -> BSL.ByteString -> LoggingT Handler a
     note401 m reason = maybe (throw401 reason) pure m
 
-    throw401 :: BSL.ByteString -> LoggingT Handler a
-    throw401 msg = lift $ throwError (err401 { errBody = msg })
+throw401 :: BSL.ByteString -> LoggingT Handler a
+throw401 msg = lift $ throwError (err401 { errBody = msg })
 
-    throw400 :: BSL.ByteString -> LoggingT Handler a
-    throw400 msg = lift $ throwError (err400 { errBody = msg })
+throw400 :: BSL.ByteString -> LoggingT Handler a
+throw400 msg = lift $ throwError (err400 { errBody = msg })
 
-    decodeLenient = T.decodeUtf8With lenientDecode
+decodeLenient :: BS.ByteString -> T.Text
+decodeLenient = T.decodeUtf8With lenientDecode
 
-    parseIP :: T.Text -> Maybe IP.IP
-    parseIP = readMaybe . T.unpack
-
-    allowedIP :: Request -> User -> LoggingT Handler Bool
-    allowedIP req user | null (uAllowedFrom user) = pure True
-                       | Nothing <- maybeClient
-                       = False <$ logWarnN "Failed to get client IP address"
-
-                       | Just (clientIP, _port) <- maybeClient
-                       = allowedIPClient clientIP req user
-      where
-        maybeClient = IP.fromSockAddr (remoteHost req)
-
-    allowedIPClient :: IP.IP -> Request -> User -> LoggingT Handler Bool
-    allowedIPClient clientIP req user
-                       | Just h <- forwardedFor
-                       = case traverse parseIP (T.splitOn ", " h) of
-                           Nothing -> do logDebugN "Failed to parse one or more IP address in X-Forwarded-For header"
-                                         pure False
-                           Just clients
-                              | any (last clients `matches`) whitelist
-                              -> True <$ logDebugN "Client allowed because the final X-Forwarded-For matches allowFrom"
-                              | any (clientIP `matches`) whitelist
-                              -> True <$ logDebugN "Client allowed because its IP address matches allowFrom"
-                              | otherwise
-                              -> pure False
-
-                       | otherwise
-                       = case find (clientIP `matches`) whitelist of
-                           Nothing -> False <$ logDebugN "Client IP not found in any whitelist"
-                           Just _ -> True <$ logDebugN "Client allowed because its IP address matches allowFrom"
-
-      where
-        matches :: IP.IP -> IP.IPRange -> Bool
-        matches (IP.IPv4 i) (IP.IPv4Range r) = i `IP.isMatchedTo` r
-        matches (IP.IPv6 i) (IP.IPv6Range r) = i `IP.isMatchedTo` r
-        matches _ _                          = False
-
-        whitelist = uAllowedFrom user
-        forwardedFor = lookup "X-Forwarded-For" (requestHeaders req) <&> decodeLenient
-
-    authFailure :: T.Text -> LoggingT Handler a
-    authFailure why = do
-      logWarnN why
-      throw401 "Bad authentication"
+authFailure :: T.Text -> LoggingT Handler a
+authFailure why = do
+    logWarnN ("Authentication failure:" <+> why)
+    throw401 "Bad authentication"
 
 
 loadDefaults :: Perms -> Perms -> Perms
@@ -233,7 +284,7 @@ loadDefaults def x =
 
 type CtxtList = AuthHandler Request User ': '[]
 
-mkContext :: TVar Config -> LoggingT IO (Context CtxtList)
-mkContext cfg = do
-  handler <- authHandler cfg
+mkContext :: TVar Config -> IORef User -> LoggingT IO (Context CtxtList)
+mkContext cfg uref = do
+  handler <- authHandler cfg uref
   pure (handler :. EmptyContext)

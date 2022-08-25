@@ -1,15 +1,31 @@
-upstreamApiBaseUrl: "https://powerdns.url/"
+upstreamApiBaseUrl: "http://localhost:8081/"
 upstreamApiKey: "secret"
+
+-- This one is optional, defaults to "key"
+upstreamApiKeyType: "key"
 listenAddress: "*"
 listenPort: 9000
-users:
-  * name: "user"
-    passHash: "$argon2id$v=19$m=8,t=1,p=1$cjV5UDFCSHRSaXJ0am9PZg$OIscttF7A8I40AK9Zxa3Sw"
 
+
+defaultPermissions:
+  apiVersions: permit
+  zoneView: filtered
+  zoneList: filtered
+
+users:
+  * name: "ihvs0261"
+    passHash: "$argon2id$v=19$m=262144,t=3,p=1$zwuSU+Txl07k/MmrXrZbJA$2gsQm935f2Zrf7t2YwrTI25BvWON1DYSDsnaWJ84UMM"
     permissions:
-      search:
-        permit
-      zoneList: filtered
       zoneUpdateRecords:
-        * { domain: "2.example.com.", types: [A, AAAA] }
-        * { domain: "3.example.com.", types: [A, AAAA] }
+       * { domain: "_acme-challenge.netbox.service.wobcom.de.", types: [TXT] }
+
+  * name: "odin-staging"
+    passHash: "$argon2id$v=19$m=262144,t=3,p=1$N65jGi/EBTjrXWz0YriY7w$xyVRMrwbIIWAbJmYNyB6NAAA7a5h99tXucJxwhHF5K4"
+    permissions:
+      zoneView:
+        * { zone: "staging.service.wobcom.de.", type: unfiltered }
+        * { zone: "staging.infra.wobcom.de.", type: unfiltered }
+
+      zoneUpdateRecords:
+        * { domain: "**.staging.service.wobcom.de.", types: [A, AAAA] }
+        * { domain: "*.staging.infra.wobcom.de.", types: [A, AAAA] }

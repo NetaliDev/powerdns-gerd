@@ -13,10 +13,8 @@ module PowerDNS.Gerd.Server.Endpoints
   )
 where
 
-import           PowerDNS.Gerd.API
-import           PowerDNS.Gerd.Permission.Types
-import           PowerDNS.Gerd.Types
-import           PowerDNS.Gerd.User (User(..), Username(..))
+import           Data.Foldable (toList, traverse_)
+import           Data.Maybe (catMaybes)
 
 import           Control.Monad (when)
 import           Control.Monad.IO.Class (liftIO)
@@ -24,25 +22,31 @@ import           Control.Monad.Logger (logDebugN, logErrorN, logInfoN, logWarnN)
 import           Control.Monad.Reader (ask)
 import qualified Data.ByteString.Char8 as BS8
 import qualified Data.ByteString.Lazy as BSL
-import           Data.Foldable (toList, traverse_)
-import           Data.Maybe (catMaybes)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.Encoding as TL
 import           GHC.TypeLits (KnownSymbol)
-import           Network.DNS.Pattern (Domain, DomainPattern, parseAbsDomain,
-                                      patternWorksInside, pprDomain, pprPattern)
+import           Network.DNS (parseAbsDomain, pprDomain)
+import           Network.DNS.Internal (Domain(..))
+import           Network.DNS.Pattern (DomainPattern, patternWorksInside,
+                                      pprPattern)
 import           Network.HTTP.Types (Status(Status))
 import qualified PowerDNS.API as PDNS
 import qualified PowerDNS.Client as PDNS
-import           PowerDNS.Gerd.Permission
-import           PowerDNS.Gerd.Utils
 import           Servant (ServerError, err403, err422, err500, errBody)
 import           Servant.Client (ClientError(FailureResponse), ClientM,
                                  ResponseF(..), runClientM)
 import           Servant.Server (ServerError(ServerError))
 import           Servant.Server.Generic (genericServerT)
 import           UnliftIO (throwIO)
+
+import           PowerDNS.Gerd.API
+import           PowerDNS.Gerd.Permission.Types
+import           PowerDNS.Gerd.Types
+import           PowerDNS.Gerd.User (User(..), Username(..))
+
+import           PowerDNS.Gerd.Permission
+import           PowerDNS.Gerd.Utils
 
 server :: GuardedAPI AsGerd
 server = GuardedAPI
@@ -75,12 +79,12 @@ validateRecordUpdate pats rrset = do
     domainBrack = "<" <> domain <> ">"
 
 parseZone :: T.Text -> GerdM ZoneId
-parseZone t = either (\err -> unprocessableWhy ("Cannot parse zone: " <> T.pack err))
+parseZone t = either (\_err -> unprocessableWhy ("Cannot parse zone: " <> t))
                       (pure . ZoneId)
                       (parseAbsDomain t)
 
 parseDom :: T.Text -> GerdM Domain
-parseDom t = either (\err -> unprocessableWhy ("Cannot parse domain: " <> T.pack err))
+parseDom t = either (\_err -> unprocessableWhy ("Cannot parse domain: " <> t))
                     pure
                     (parseAbsDomain t)
 
