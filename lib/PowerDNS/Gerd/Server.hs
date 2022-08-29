@@ -61,6 +61,8 @@ import           UnliftIO.IORef
 
 type Logger = Loc -> LogSource -> LogLevel -> LogStr -> IO ()
 
+data ClientIP = ClientIP { clientIP :: IP.IP, proxies :: [IP.IP] }
+
 -- | A natural transformation turning a GerdM into a plain Servant handler.
 -- See https://docs.servant.dev/en/stable/cookbook/using-custom-monad/UsingCustomMonad.html
 -- One of the core themes is that we want an unliftable monad. Inside GerdM we throw
@@ -115,9 +117,9 @@ mkApp cfg = do
 loggerAddUser :: IORef User -> Logger -> Logger
 loggerAddUser uref logger = \loc src lvl str -> do
     user <- readIORef uref
-    logger loc src lvl (str <> toLogStr (pprUser user))
+    logger loc src lvl (toLogStr (pprUser user) <> str)
   where
-    pprUser u = " user=" <> quoted (getUsername (uName u))
+    pprUser u = "<" <> getUsername (uName u) <> "> "
 
 getKey :: Config -> LoggingT IO T.Text
 getKey cfg = case cfgUpstreamApiKeyType cfg of
@@ -133,60 +135,57 @@ note Nothing err = err
 showT :: Show a => a -> T.Text
 showT = T.pack . show
 
-prepend :: T.Text -> T.Text -> T.Text
-prepend = (<>)
-
 (<+>) :: T.Text -> T.Text -> T.Text
 l <+> r = l <> " " <> r
 
-authorizeClientIP :: Request
+logProxies :: [IP.IP] -> LoggingT Handler ()
+logProxies [] = logDebugN "No proxies detected"
+logProxies xs = logDebugN ("Proxies found:" <+> T.intercalate ", " (showT <$> xs))
+
+
+authorizeClient :: Request
                   -> [IP.IPRange] -- ^ Allowed client IPs
                   -> [IP.IPRange] -- ^ Trusted proxies
                   -> LoggingT Handler ()
-authorizeClientIP req allowedClients trustedProxies = do
-    (clientIP, _port)  <- IP.fromSockAddr (remoteHost req)
-                            `note` authFailure "Failed to convert client IP"
-    logDebugN ("Immediate client has IP address" <+> showT clientIP)
-    fs <- getForwardedFor req
-    case fs of
-        Just (realIP:rest) -> do
-            let chain = clientIP : reverse rest
-            logDebugN $ "Proxies detected:" <> mconcat (prepend " proxy=" . showT <$> chain)
-                                        <+> "realip=" <> showT realIP
-            authorizeProxies trustedProxies chain
+authorizeClient req allowedClients trustedProxies = do
+    cip <- getClientIP req
 
-            if any (ipMatches realIP) allowedClients
-                then logDebugN "Client allowed because the first X-Forwarded-For address matches allowFrom"
-                else authFailure $ "First X-Forwarded-For address" <+> showT realIP
-                                 <+> "does not match any entry from allowedFrom"
+    logDebugN ("Client has IP address" <+> showT (clientIP cip))
+    logProxies (proxies cip)
 
-        Just [] -> authFailure "X-Forwarded-For is present but empty"
-        Nothing ->
-            if any (ipMatches clientIP) allowedClients
-                then logDebugN "Client allowed because its IP address matches allowFrom"
-                else authFailure "Client IP does not match any entry from allowedFrom"
+    authorizeProxies trustedProxies (proxies cip)
+
+    if any (ipMatches (clientIP cip)) allowedClients
+      then logDebugN "Client allowed because its IP address matches allowFrom"
+      else authFailure "Client IP does not match any entry from allowedFrom"
+
 
 authorizeProxies :: [IP.IPRange] -> [IP.IP] -> LoggingT Handler ()
 authorizeProxies trustedProxies = go
   where
-    go []     = pure ()
+    go []     = logDebugN "All proxies found in trustedProxies"
     go (x:xs) | any (ipMatches x) trustedProxies
               = go xs
               | otherwise
-              = authFailure ("The proxy " <> T.pack (show x) <> " is not trusted")
+              = authFailure ("Proxy" <+> T.pack (show x) <+> "is not trusted")
 
 ipMatches :: IP.IP -> IP.IPRange -> Bool
 ipMatches (IP.IPv4 i) (IP.IPv4Range r) = i `IP.isMatchedTo` r
 ipMatches (IP.IPv6 i) (IP.IPv6Range r) = i `IP.isMatchedTo` r
 ipMatches _ _                          = False
 
-getForwardedFor :: Request -> LoggingT Handler (Maybe [IP.IP])
-getForwardedFor req = do
-    hdrs <- traverse selectXFF (requestHeaders req)
-    case hdrs of
-        [] -> pure Nothing
-        _  -> pure (Just (mconcat hdrs))
+getClientIP :: Request -> LoggingT Handler ClientIP
+getClientIP req = do
+    (ip, _port)  <- IP.fromSockAddr (remoteHost req)
+                            `note` authFailure "Failed to convert client IP"
+    mf <- getForwardedFor req
+    case mf of
+      []     -> pure (ClientIP { clientIP = ip, proxies = [] })
+      (x:xs) -> pure (ClientIP { clientIP = x,  proxies = ip : reverse xs })
 
+
+getForwardedFor :: Request -> LoggingT Handler [IP.IP]
+getForwardedFor req = mconcat <$> traverse selectXFF (requestHeaders req)
   where
     selectXFF :: Header -> LoggingT Handler [IP.IP]
     selectXFF ("X-Forwarded-For", x) = traverse parseIP (T.splitOn ", " (decodeLenient x))
@@ -215,18 +214,18 @@ authHandler cfg uref = do
         cfg' <- readTVarIO cfg
         apiKey <- xApiKey `note401` "Missing API key"
         case BS.split (fromIntegral (ord ':')) apiKey of
-            [name, hash] -> do
+            [name, pass] -> do
               let nam = decodeLenient name
               user <- lookup (Username nam) (cfgUsers cfg')
                       `note` authFailure ("User " <> nam <> " not found")
 
               logDebugN ("User" <+> quoted (getUsername (uName user)) <+> "found")
-              for_ (uAllowedFrom user) $ \allowedIPs -> do
-                authorizeClientIP req allowedIPs (cfgTrustedProxies cfg')
+              whenJust_ (uAllowedFrom user) $ \allowedIPs -> do
+                authorizeClient req allowedIPs (cfgTrustedProxies cfg')
 
-              valid <- liftIO (authenticate user hash)
-              when (not valid) $ do
-                  authFailure ("User " <> nam <> " specified an incorrect password")
+              mg <- authenticate user pass
+              when (mg /= Just Authenticated) $ do
+                  authFailure ("Incorrect password user=" <> nam)
 
               let user' = user { uPerms = loadDefaults (cfgDefaultPerms cfg') (uPerms user) }
               writeIORef uref user'
@@ -236,6 +235,9 @@ authHandler cfg uref = do
 
     note401 :: Maybe a -> BSL.ByteString -> LoggingT Handler a
     note401 m reason = maybe (throw401 reason) pure m
+
+whenJust_ :: Monad m => Maybe a -> (a -> m ()) -> m ()
+whenJust_ = for_
 
 throw401 :: BSL.ByteString -> LoggingT Handler a
 throw401 msg = lift $ throwError (err401 { errBody = msg })

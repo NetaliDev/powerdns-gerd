@@ -37,7 +37,6 @@ test-suite powerdns-gerd-test
                     , text
                     , unliftio
                     , monad-logger
-                    , wai-extra
                     , call-stack
 
 executable powerdns-gerd

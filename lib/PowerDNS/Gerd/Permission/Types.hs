@@ -5,19 +5,23 @@
 -- This module defines types and some utilities for permissions.
 --
 {-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE FlexibleInstances   #-}
 {-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilies        #-}
 {-# LANGUAGE TypeOperators       #-}
 module PowerDNS.Gerd.Permission.Types
   ( ZoneId(..)
   , Perms(..)
-  , Authorization(..)
-  , Authorization'
-  , Authorization''
-  , SimpleAuthorization(..)
+  , SrvPerm(..)
+  , SrvPerm'
+  , PrimPerm(..)
+  , ZonePerm(..)
+  , ZonePerm'
   , describe
   , WithDoc(..)
+  , Perm(..)
 
   -- * Pattern types
   , DomTyPat
@@ -28,12 +32,15 @@ module PowerDNS.Gerd.Permission.Types
   )
 where
 
+import           Data.Kind (Type)
 import           Data.Proxy (Proxy(..))
 import qualified Data.Text as T
 import           GHC.TypeLits (KnownSymbol, Symbol, symbolVal)
 import           Network.DNS (Domain)
-import           Network.DNS.Pattern (DomainPattern)
+import           Network.DNS.Pattern (DomainPattern, pprPattern)
 import           PowerDNS.API (RecordType)
+
+import           PowerDNS.Gerd.Utils (quoted, showT)
 
 newtype ZoneId = ZoneId { getZone :: Domain }
 
@@ -54,92 +61,121 @@ describe :: forall s a. KnownSymbol s => (Perms -> WithDoc a s) -> T.Text
 describe _ = T.pack (symbolVal (Proxy :: Proxy s))
 
 data Perms = Perms
-  { permApiVersions       :: Maybe [SimpleAuthorization]
+  { permApiVersions       :: Maybe [PrimPerm]
                             `WithDoc` "list api versions"
 
   -- Server wide
-  , permServerList        :: Maybe [SimpleAuthorization]
+  , permServerList        :: Maybe [PrimPerm]
                              `WithDoc` "list servers"
 
-  , permServerView        :: Maybe [Authorization'']
+  , permServerView        :: Maybe [SrvPerm']
                              `WithDoc` "view a server"
 
-  , permSearch            :: Maybe [Authorization'']
+  , permSearch            :: Maybe [SrvPerm']
                              `WithDoc` "search"
 
-  , permFlushCache        :: Maybe [Authorization'']
+  , permFlushCache        :: Maybe [SrvPerm']
                              `WithDoc` "flush cache"
 
-  , permStatistics        :: Maybe [Authorization'']
+  , permStatistics        :: Maybe [SrvPerm']
                              `WithDoc` "statistics"
 
   -- Zone wide
-  , permZoneCreate        :: Maybe [Authorization'']
+  , permZoneCreate        :: Maybe [SrvPerm']
                              `WithDoc` "create a zone"
 
-  , permZoneList          :: Maybe [Authorization Filtered ()]
+  , permZoneList          :: Maybe [SrvPerm Filtered]
                              `WithDoc` "list zones"
 
   -- Per zone
-  , permZoneView          :: Maybe [Authorization Filtered DomainPattern]
+  , permZoneView          :: Maybe [ZonePerm Filtered]
                              `WithDoc` "view a zone"
 
-  , permZoneUpdate        :: Maybe [Authorization' DomainPattern]
+  , permZoneUpdate        :: Maybe [ZonePerm']
                              `WithDoc` "update a zone"
 
-  , permZoneUpdateRecords :: Maybe [Authorization DomTyPat DomainPattern]
+  , permZoneUpdateRecords :: Maybe [ZonePerm DomTyPat]
                              `WithDoc` "update a zones records"
 
-  , permZoneDelete        :: Maybe [Authorization' DomainPattern]
+  , permZoneDelete        :: Maybe [ZonePerm']
                              `WithDoc` "delete a zone"
 
-  , permZoneTriggerAxfr   :: Maybe [Authorization' DomainPattern]
+  , permZoneTriggerAxfr   :: Maybe [ZonePerm']
                              `WithDoc` "trigger a zone axfr"
 
-  , permZoneGetAxfr       :: Maybe [Authorization' DomainPattern]
+  , permZoneGetAxfr       :: Maybe [ZonePerm']
                              `WithDoc` "get a zone in axfr format"
 
-  , permZoneNotifySlaves  :: Maybe [Authorization' DomainPattern]
+  , permZoneNotifySlaves  :: Maybe [ZonePerm']
                              `WithDoc` "notify slaves"
 
-  , permZoneRectify       :: Maybe [Authorization' DomainPattern]
+  , permZoneRectify       :: Maybe [ZonePerm']
                              `WithDoc` "rectify a zone"
 
-  , permZoneMetadata      :: Maybe [Authorization' DomainPattern]
-                             `WithDoc` "manipulating a zones metadata"
+  , permZoneMetadata      :: Maybe [ZonePerm']
+                             `WithDoc` "manipulate a zones metadata"
 
-  , permZoneCryptokeys    :: Maybe [Authorization' DomainPattern]
-                             `WithDoc` "manipulating a zones cryptokeys"
+  , permZoneCryptokeys    :: Maybe [ZonePerm']
+                             `WithDoc` "manipulate a zones cryptokeys"
 
   -- TSIG specific
-  , permTSIGKeyList       :: Maybe [Authorization'']
+  , permTSIGKeyList       :: Maybe [SrvPerm']
                              `WithDoc` "list tsig keys"
 
-  , permTSIGKeyCreate     :: Maybe [Authorization'']
+  , permTSIGKeyCreate     :: Maybe [SrvPerm']
                              `WithDoc` "create a tsig key"
 
-  , permTSIGKeyView       :: Maybe [Authorization'']
+  , permTSIGKeyView       :: Maybe [SrvPerm']
                              `WithDoc` "view a tsig key"
 
-  , permTSIGKeyUpdate     :: Maybe [Authorization'']
+  , permTSIGKeyUpdate     :: Maybe [SrvPerm']
                              `WithDoc` "update a tsig key"
 
-  , permTSIGKeyDelete     :: Maybe [Authorization'']
+  , permTSIGKeyDelete     :: Maybe [SrvPerm']
                              `WithDoc` "delete a tsig key"
   }
 
--- | A simple convenient token to show we are authorized to do this. No patterns or tokens.
-data SimpleAuthorization = SimpleAuthorization
-  deriving (Eq, Ord, Show)
+-- | A primitive permission that unconditionally allows something. No patterns or tokens.
+data PrimPerm = PrimPerm { ppName :: T.Text }
+  deriving (Eq, Ord)
 
-type Authorization' = Authorization ()
-type Authorization'' = Authorization () ()
+type ZonePerm' = ZonePerm ()
+-- | A permission when matching a given zone and server. Provides a token when matched.
+data ZonePerm tok = ZonePerm { zpServer :: T.Text
+                             , zpPattern :: DomainPattern
+                             , zpToken :: tok
+                             , zpName :: T.Text }
 
--- | A type of authorization. The 'tok' type variable designates what kind of token
--- we get when authorized, and 'pat' designates some kind of pattern that must match
--- for the authorization to work.
-data Authorization tok pat = Authorization
-  { authServer  :: T.Text -- ^ Server must match
-  , authPattern :: pat    -- ^ Specified pattern must match
-  , authToken   :: tok    -- ^ When everything matched, provide this as context.
-  } deriving (Eq, Ord, Show)
+type SrvPerm' = SrvPerm ()
+-- | A permission when matching a given server. Provides a token when matched.
+data SrvPerm tok = SrvPerm { spServer :: T.Text
+                           , spToken :: tok
+                           , spName :: T.Text }
+
+class Perm p where
+  type Tok p :: Type
+  displayPerm :: p -> T.Text
+  token :: p -> Tok p
+
+(<+>) :: T.Text -> T.Text -> T.Text
+l <+> r = l <> " " <> r
+
+instance Show tok => Perm (ZonePerm tok) where
+  type Tok (ZonePerm tok) = tok
+  displayPerm p = "permission=" <> quoted (zpName p)
+              <+> "server=" <> quoted (zpServer p)
+              <+> "zone=" <> quoted (pprPattern (zpPattern p))
+              <+> "token=" <> showT (zpToken p)
+  token = zpToken
+
+instance Show tok => Perm (SrvPerm tok) where
+  type Tok (SrvPerm tok) = tok
+  displayPerm p = "permission=" <> quoted (spName p)
+              <+> "server=" <> quoted (spServer p)
+              <+> "token=" <> showT (spToken p)
+  token = spToken
+
+instance Perm PrimPerm where
+  type Tok PrimPerm = ()
+  displayPerm p = "permission=" <> ppName p
+  token _ = ()

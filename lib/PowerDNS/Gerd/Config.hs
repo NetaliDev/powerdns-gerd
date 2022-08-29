@@ -15,6 +15,7 @@ module PowerDNS.Gerd.Config
   )
 where
 
+import           Data.Functor (($>))
 import           Data.Maybe (fromMaybe)
 import           Data.String (fromString)
 import           Text.Read (readMaybe)
@@ -37,15 +38,15 @@ import           Network.DNS.Pattern (parsePattern)
 import           Network.DNS.Pattern.Internal (DomainPattern(..),
                                                LabelPattern(..))
 import           PowerDNS.API.Zones
-import           PowerDNS.Gerd.Permission.Types (Authorization(..),
-                                                 Authorization',
-                                                 Authorization'', DomTyPat,
-                                                 Filtered(..), Perms(..),
-                                                 RecTyPat(..),
-                                                 SimpleAuthorization(..),
-                                                 WithDoc(WithDoc), describe)
+import           PowerDNS.Gerd.Permission.Types (DomTyPat, Filtered(..),
+                                                 Perms(..), PrimPerm(..),
+                                                 RecTyPat(..), SrvPerm(..),
+                                                 SrvPerm', WithDoc(WithDoc),
+                                                 ZonePerm(..), ZonePerm',
+                                                 describe)
 import           PowerDNS.Gerd.User
 import           UnliftIO (MonadIO, liftIO, throwIO)
+
 
 data Config = Config
   { cfgUpstreamApiBaseUrl :: T.Text
@@ -63,53 +64,72 @@ data ApiKeyType = Key | Path
 optSectionDefault' :: a -> T.Text -> ValueSpec a -> T.Text -> SectionsSpec a
 optSectionDefault' def sect spec descr = fromMaybe def <$> optSection' sect spec descr
 
-simpleAuthSpec :: ValueSpec [SimpleAuthorization]
-simpleAuthSpec = [SimpleAuthorization] <$ atomSpec "permit"
+primAuthSpec :: T.Text -> ValueSpec [PrimPerm]
+primAuthSpec ppName = [PrimPerm {..} ] <$ atomSpec "permit"
 
-srvAuthSpec :: ValueSpec [Authorization'']
-srvAuthSpec = (pure <$> permit) <!> oneOrList
+srvAuthSpec :: T.Text -> ValueSpec [SrvPerm']
+srvAuthSpec spName = (pure <$> permit) <!> oneOrList
     (sectionsSpec "server-authorization-spec" $ do
-      authServer <- reqSection' "server" textSpec "Matching this server. Defaults to localhost"
-      authPattern <- pure ()
-      authToken <- pure ()
-      pure Authorization{..})
+      spServer <- reqSection' "server" textSpec "Matching this server. Defaults to localhost"
+      spToken <- pure ()
+      pure SrvPerm{..})
   where
-    permit = Authorization "localhost" () () <$ atomSpec "permit"
+    permit = atomSpec "permit" $>
+            SrvPerm { spServer = "localhost"
+                    , spToken = ()
+                    , .. }
 
 anyDomPat :: DomainPattern
 anyDomPat = DomainPattern [DomGlobStar]
 
-permZoneListSpec :: ValueSpec [Authorization Filtered ()]
-permZoneListSpec = (pure <$> permit) <!> (pure <$> filtered) <!> oneOrList
+permZoneListSpec :: T.Text -> ValueSpec [SrvPerm Filtered]
+permZoneListSpec spName = (pure <$> permit) <!> (pure <$> filtered) <!> oneOrList
     (sectionsSpec "perm-zone-list-spec" $ do
-        authServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
-        authPattern <- pure ()
-        authToken <- reqSection' "type" filteredSpec "Whether or not records will be filtered using zoneUpdateRecords permissions"
-        pure Authorization{..})
+        spServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
+        spToken <- reqSection' "type" filteredSpec "Whether or not records will be filtered using zoneUpdateRecords permissions"
+        pure SrvPerm{..})
   where
-    permit = Authorization "localhost" () Unfiltered <$ atomSpec "permit"
-    filtered = Authorization "localhost" () Filtered <$ atomSpec "filtered"
+    permit = atomSpec "permit" $>
+             SrvPerm { spServer = "localhost"
+                     , spToken = Unfiltered
+                     , .. }
+    filtered = atomSpec "filtered" $>
+            SrvPerm { spServer = "localhost"
+                    , spToken = Filtered
+                    , .. }
 
-permZoneViewSpec :: ValueSpec [Authorization Filtered DomainPattern]
-permZoneViewSpec = (pure <$> permit) <!> (pure <$> filtered) <!> oneOrList
+permZoneViewSpec :: T.Text -> ValueSpec [ZonePerm Filtered]
+permZoneViewSpec zpName = (pure <$> permit) <!> (pure <$> filtered) <!> oneOrList
     (sectionsSpec "perm-zone-view-spec" $ do
-        authServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
-        authPattern <- optSectionDefault' anyDomPat "zone" domPatSpec "Matching this zone. If left empty, will match any zone"
-        authToken <- reqSection' "type" filteredSpec "Whether or not records in all zones will be filtered using zoneUpdateRecords permissions. If a zone has no visible records, it will be omitted entirely"
-        pure Authorization{..})
+        zpServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
+        zpPattern <- optSectionDefault' anyDomPat "zone" domPatSpec "Matching this zone. If left empty, will match any zone"
+        zpToken <- reqSection' "type" filteredSpec "Whether or not records in all zones will be filtered using zoneUpdateRecords permissions. If a zone has no visible records, it will be omitted entirely"
+        pure ZonePerm{..})
   where
-    permit = Authorization "localhost" anyDomPat Unfiltered <$ atomSpec "permit"
-    filtered = Authorization "localhost" anyDomPat Filtered <$ atomSpec "filtered"
+    permit = atomSpec "permit" $>
+             ZonePerm { zpServer = "localhost"
+                      , zpPattern = anyDomPat
+                      , zpToken = Unfiltered
+                      , .. }
+    filtered = atomSpec "filtered" $>
+               ZonePerm { zpServer = "localhost"
+                        , zpPattern = anyDomPat
+                        , zpToken = Filtered
+                        , .. }
 
-permZoneSpec :: ValueSpec [Authorization' DomainPattern]
-permZoneSpec = (pure <$> permit) <!> oneOrList
+permZoneSpec :: T.Text -> ValueSpec [ZonePerm']
+permZoneSpec zpName = (pure <$> permit) <!> oneOrList
     (sectionsSpec "perm-zone-spec" $ do
-        authServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
-        authPattern <- optSectionDefault' anyDomPat "zone" domPatSpec "Matching this zone. If left empty, will match any zone"
-        authToken <- pure ()
-        pure Authorization{..})
+        zpServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
+        zpPattern <- optSectionDefault' anyDomPat "zone" domPatSpec "Matching this zone. If left empty, will match any zone"
+        zpToken <- pure ()
+        pure ZonePerm{..})
   where
-    permit = Authorization "localhost" anyDomPat () <$ atomSpec "permit"
+    permit = atomSpec "permit" $>
+             ZonePerm { zpServer = "localhost"
+                      , zpPattern = anyDomPat
+                      , zpToken = ()
+                      , .. }
 
 domTyPatSpec :: SectionsSpec DomTyPat
 domTyPatSpec = do
@@ -117,44 +137,51 @@ domTyPatSpec = do
   recTyPat <- reqSection' "types" recTyPatSpec "Matching any of these record types"
   pure (domPat, recTyPat)
 
-permZoneUpdateRecordsSpec :: ValueSpec [Authorization DomTyPat DomainPattern]
-permZoneUpdateRecordsSpec = (pure <$> permit) <!> oneOrList
+permZoneUpdateRecordsSpec :: T.Text -> ValueSpec [ZonePerm DomTyPat]
+permZoneUpdateRecordsSpec zpName = (pure <$> permit) <!> oneOrList
     (sectionsSpec "perm-zone-update-records-spec" $ do
-        authServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
-        authPattern <- optSectionDefault' anyDomPat "zone" domPatSpec "Matching this zone. If left empty, will match any zone"
-        authToken <- domTyPatSpec
-        pure Authorization{..})
+        zpServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
+        zpPattern <- optSectionDefault' anyDomPat "zone" domPatSpec "Matching this zone. If left empty, will match any zone"
+        zpToken <- domTyPatSpec
+        pure ZonePerm{..})
   where
-    permit = Authorization "localhost" anyDomPat (anyDomPat, AnyRecordType) <$ atomSpec "permit"
+    permit = atomSpec "permit" $>
+             ZonePerm { zpServer = "localhost"
+                      , zpPattern = anyDomPat
+                      , zpToken = (anyDomPat, AnyRecordType)
+                      , .. }
 
 permsSpec :: ValueSpec Perms
 permsSpec = sectionsSpec "perms-spec" $ do
-    permApiVersions       <- WithDoc <$> optSection' "apiVersions" simpleAuthSpec (annotationFor permApiVersions)
-    permServerList        <- WithDoc <$> optSection' "serverList" simpleAuthSpec (annotationFor permServerList)
-    permServerView        <- WithDoc <$> optSection' "serverView" srvAuthSpec (annotationFor permServerView)
-    permSearch            <- WithDoc <$> optSection' "search" srvAuthSpec (annotationFor permSearch)
-    permFlushCache        <- WithDoc <$> optSection' "flushCache" srvAuthSpec (annotationFor permFlushCache)
-    permStatistics        <- WithDoc <$> optSection' "statistics" srvAuthSpec (annotationFor permStatistics)
-    permZoneCreate        <- WithDoc <$> optSection' "zoneCreate" srvAuthSpec (annotationFor permZoneCreate)
-    permZoneList          <- WithDoc <$> optSection' "zoneList" permZoneListSpec (annotationFor permZoneList)
-    permZoneView          <- WithDoc <$> optSection' "zoneView" permZoneViewSpec (annotationFor permZoneView)
-    permZoneUpdate        <- WithDoc <$> optSection' "zoneUpdate" permZoneSpec (annotationFor permZoneUpdate)
-    permZoneUpdateRecords <- WithDoc <$> optSection' "zoneUpdateRecords" permZoneUpdateRecordsSpec (annotationFor permZoneUpdateRecords)
-    permZoneDelete        <- WithDoc <$> optSection' "zoneDelete" permZoneSpec (annotationFor permZoneDelete)
-    permZoneTriggerAxfr   <- WithDoc <$> optSection' "zoneTriggerAxfr" permZoneSpec (annotationFor permZoneTriggerAxfr)
-    permZoneGetAxfr       <- WithDoc <$> optSection' "zoneGetAxfr" permZoneSpec (annotationFor permZoneGetAxfr)
-    permZoneNotifySlaves  <- WithDoc <$> optSection' "zoneNotifySlaves" permZoneSpec (annotationFor permZoneNotifySlaves)
-    permZoneRectify       <- WithDoc <$> optSection' "zoneRectify" permZoneSpec (annotationFor permZoneRectify)
-    permZoneMetadata      <- WithDoc <$> optSection' "zoneMetadata" permZoneSpec (annotationFor permZoneMetadata)
-    permZoneCryptokeys    <- WithDoc <$> optSection' "zoneCryptokeys" permZoneSpec (annotationFor permZoneCryptokeys)
-    permTSIGKeyList       <- WithDoc <$> optSection' "tsigKeyList" srvAuthSpec (annotationFor permTSIGKeyList)
-    permTSIGKeyCreate     <- WithDoc <$> optSection' "tsigKeyCreate" srvAuthSpec (annotationFor permTSIGKeyCreate)
-    permTSIGKeyView       <- WithDoc <$> optSection' "tsigKeyView" srvAuthSpec (annotationFor permTSIGKeyView)
-    permTSIGKeyUpdate     <- WithDoc <$> optSection' "tsigKeyUpdate" srvAuthSpec (annotationFor permTSIGKeyUpdate)
-    permTSIGKeyDelete     <- WithDoc <$> optSection' "tsigKeyDelete" srvAuthSpec (annotationFor permTSIGKeyDelete)
+    permApiVersions       <- WithDoc <$> optSection2' "apiVersions" primAuthSpec (annotationFor permApiVersions)
+    permServerList        <- WithDoc <$> optSection2' "serverList" primAuthSpec (annotationFor permServerList)
+    permServerView        <- WithDoc <$> optSection2' "serverView" srvAuthSpec (annotationFor permServerView)
+    permSearch            <- WithDoc <$> optSection2' "search" srvAuthSpec (annotationFor permSearch)
+    permFlushCache        <- WithDoc <$> optSection2' "flushCache" srvAuthSpec (annotationFor permFlushCache)
+    permStatistics        <- WithDoc <$> optSection2' "statistics" srvAuthSpec (annotationFor permStatistics)
+    permZoneCreate        <- WithDoc <$> optSection2' "zoneCreate" srvAuthSpec (annotationFor permZoneCreate)
+    permZoneList          <- WithDoc <$> optSection2' "zoneList" permZoneListSpec (annotationFor permZoneList)
+    permZoneView          <- WithDoc <$> optSection2' "zoneView" permZoneViewSpec (annotationFor permZoneView)
+    permZoneUpdate        <- WithDoc <$> optSection2' "zoneUpdate" permZoneSpec (annotationFor permZoneUpdate)
+    permZoneUpdateRecords <- WithDoc <$> optSection2' "zoneUpdateRecords" permZoneUpdateRecordsSpec (annotationFor permZoneUpdateRecords)
+    permZoneDelete        <- WithDoc <$> optSection2' "zoneDelete" permZoneSpec (annotationFor permZoneDelete)
+    permZoneTriggerAxfr   <- WithDoc <$> optSection2' "zoneTriggerAxfr" permZoneSpec (annotationFor permZoneTriggerAxfr)
+    permZoneGetAxfr       <- WithDoc <$> optSection2' "zoneGetAxfr" permZoneSpec (annotationFor permZoneGetAxfr)
+    permZoneNotifySlaves  <- WithDoc <$> optSection2' "zoneNotifySlaves" permZoneSpec (annotationFor permZoneNotifySlaves)
+    permZoneRectify       <- WithDoc <$> optSection2' "zoneRectify" permZoneSpec (annotationFor permZoneRectify)
+    permZoneMetadata      <- WithDoc <$> optSection2' "zoneMetadata" permZoneSpec (annotationFor permZoneMetadata)
+    permZoneCryptokeys    <- WithDoc <$> optSection2' "zoneCryptokeys" permZoneSpec (annotationFor permZoneCryptokeys)
+    permTSIGKeyList       <- WithDoc <$> optSection2' "tsigKeyList" srvAuthSpec (annotationFor permTSIGKeyList)
+    permTSIGKeyCreate     <- WithDoc <$> optSection2' "tsigKeyCreate" srvAuthSpec (annotationFor permTSIGKeyCreate)
+    permTSIGKeyView       <- WithDoc <$> optSection2' "tsigKeyView" srvAuthSpec (annotationFor permTSIGKeyView)
+    permTSIGKeyUpdate     <- WithDoc <$> optSection2' "tsigKeyUpdate" srvAuthSpec (annotationFor permTSIGKeyUpdate)
+    permTSIGKeyDelete     <- WithDoc <$> optSection2' "tsigKeyDelete" srvAuthSpec (annotationFor permTSIGKeyDelete)
 
     pure Perms{..}
   where
+    -- Helper to ensure that the section name we are parsing is passed down into the builder function.
+    -- This lets us attach the section name to each permission that generated it.
+    optSection2' x f = optSection' x (f x)
     annotationFor sel = "Permission to " <> describe sel
 
 filteredSpec :: ValueSpec Filtered
@@ -245,7 +272,7 @@ configSpec = sectionsSpec "top-level" $ do
 
 allForbidden :: Perms
 allForbidden = Perms
-  { permApiVersions       = WithDoc (Just [SimpleAuthorization])
+  { permApiVersions       = WithDoc (Just [PrimPerm "apiVersions"])
   , permServerList        = WithDoc Nothing
   , permServerView        = WithDoc Nothing
   , permSearch            = WithDoc Nothing

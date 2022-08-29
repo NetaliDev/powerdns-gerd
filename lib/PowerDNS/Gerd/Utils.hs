@@ -5,7 +5,6 @@
 -- This module defines an assortment of utilities used by powerdns-gerd.
 --
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell   #-}
 module PowerDNS.Gerd.Utils
   ( const0
   , const1

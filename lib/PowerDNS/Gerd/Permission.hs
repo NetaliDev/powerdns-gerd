@@ -27,7 +27,7 @@ import           Data.Bifunctor (first)
 import qualified Data.Text as T
 import           Network.DNS (parseAbsDomain)
 import           Network.DNS.Internal (Domain(..))
-import           Network.DNS.Pattern (DomainPattern, matchesPattern, pprPattern)
+import           Network.DNS.Pattern (matchesPattern, pprPattern)
 import qualified PowerDNS.API as PDNS
 import           PowerDNS.Gerd.Permission.Types
 import           PowerDNS.Gerd.Utils
@@ -42,18 +42,18 @@ matchesDomTyPat wantedDom wantedTy (pat, ty) = (wantedDom `matchesPattern` pat)
                                             && matchesRecTyPat wantedTy ty
 
 -- | Filter permissions matching the specified server name.
-matchingSrv :: T.Text -> [Authorization tok pat] -> [Authorization tok pat]
+matchingSrv :: T.Text -> [SrvPerm tok] -> [SrvPerm tok]
 matchingSrv wantedSrv perms
-    = [ e| e@(Authorization srv _dom _res) <- perms
-      , wantedSrv == srv
+    = [ p | p <- perms
+      , wantedSrv == spServer p
       ]
 
 -- | Filter permissions matching the specified zone and server name.
-matchingZone :: T.Text -> ZoneId -> [Authorization tok DomainPattern] -> [Authorization tok DomainPattern]
+matchingZone :: T.Text -> ZoneId -> [ZonePerm tok] -> [ZonePerm tok]
 matchingZone wantedSrv (ZoneId wantedZone) perms
-    = [ e | e@(Authorization srv dom _tok) <- perms
-      , wantedSrv == srv
-      , wantedZone `matchesPattern` dom
+    = [ r | r <- perms
+      , wantedSrv == zpServer r
+      , wantedZone `matchesPattern` zpPattern r
       ]
 
 -- | Test whether a given RRSet matches any of the specified 'DomTyPat' patterns.
