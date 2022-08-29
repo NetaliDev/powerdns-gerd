@@ -297,12 +297,17 @@ allForbidden = Perms
   , permTSIGKeyDelete     = WithDoc Nothing
   }
 
+pskSpec :: ValueSpec Credential
+pskSpec = sectionsSpec "psk-spec" (CredPSK . T.encodeUtf8 <$> reqSection "psk" "Pre-shared key")
+
+hashSpec :: ValueSpec Credential
+hashSpec = sectionsSpec "hash-spec" (CredHash . T.encodeUtf8 <$> reqSection "hash" "Argon2id hash of the secret as a string in the original reference format, e.g.: \"$argon2id$v=19$m=65536,t=3,p=2$c29tZXNhbHQ$RdescudvJCsgt3ub+b+dWRWJTmaaJObG\".")
+
 userSpec :: ValueSpec (Username, User)
 userSpec = sectionsSpec "user-spec" $ do
   uName <- Username <$> reqSection "name" "The name of the API user"
-  uPassHash <- reqSection' "passHash"
-                            (T.encodeUtf8 <$> textSpec)
-                            "Argon2id hash of the secret as a string in the original reference format, e.g.: $argon2id$v=19$m=65536,t=3,p=2$c29tZXNhbHQ$RdescudvJCsgt3ub+b+dWRWJTmaaJObG"
+  uCredential <- reqSection' "credential" (pskSpec <!> hashSpec) "Credential for this user"
+
   uPerms <- reqSection' "permissions" permsSpec "Permissions for this user"
   uAllowedFrom <- optSectionDefault' Nothing "allowedFrom" (Just <$> listSpec iprSpec) "List of IP addresses or networks the user is allowed to access the API from"
 

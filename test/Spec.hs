@@ -38,7 +38,10 @@ data TestEnv = TestEnv
   }
 
 runGerdAs :: T.Text -> ClientM a -> TestEnv -> IO (Either ClientError a)
-runGerdAs user act te  = runClientM act (applyXApiKey (user <> ":correctSecret") (teGerdEnv te))
+runGerdAs user = runGerdWith user "correctSecret"
+
+runGerdWith :: T.Text -> T.Text -> ClientM a -> TestEnv -> IO (Either ClientError a)
+runGerdWith user pass act te = runClientM act (applyXApiKey (user <> ":" <> pass) (teGerdEnv te))
 
 unsafeRunUpstream :: ClientM a -> TestEnv -> IO a
 unsafeRunUpstream act te = either throwIO pure =<< runClientM act (teUpstreamEnv te)
@@ -93,6 +96,15 @@ assertFailureCode expectedCode prefix (Left err) = do
             expected = toEnum expectedCode
             actual = responseStatusCode resp
         r -> assertString (prefix <> ": returned with an unexpected error: " <> show r)
+
+authnTests :: TestEnv -> TestTree
+authnTests te = testGroup "User Authentication"
+  [ testCase "without authentication" $ assertUnauthenticated =<< runUnauth listVersions te
+  , testCase "with matching psk" $ assertOk =<< runGerdWith "user-psk" "correctSecret" listVersions te
+  , testCase "with mismatching psk" $ assertUnauthenticated =<< runGerdWith "user-psk" "correctSecre" listVersions te
+  , testCase "with matching hash" $ assertOk =<< runGerdWith "user-hash" "correctSecret" listVersions te
+  , testCase "with mismatching hash" $ assertUnauthenticated =<< runGerdWith "user-hash" "correctSecre" listVersions te
+  ]
 
 versionTests :: TestEnv -> TestTree
 versionTests te = testGroup "Versions access"
@@ -267,6 +279,7 @@ runUnauth act = runClientM act . teGerdEnv
 tests :: TestEnv -> TestTree
 tests te = testGroup "PowerDNS tests"
     [ versionTests te
+    , authnTests te
     , zoneTests te
     ]
 
