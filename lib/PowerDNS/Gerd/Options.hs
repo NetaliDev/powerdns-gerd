@@ -121,11 +121,14 @@ parseConfigFile = option str ( metavar "FILE"
                             <> value "./powerdns-gerd.conf"
                             <> showDefault)
 
+add :: Int -> Int -> Int
+add = (+)
+
 parseVerbosity :: Parser Int
 parseVerbosity = quiet <|> level <|> pure 1
   where
     level :: Parser Int
-    level = (fmap length . some)
+    level = (fmap (add 1 . length) . some)
             (flag' () (long "verbosity" <> short 'v' <> help "Increase verbosity"))
 
     quiet :: Parser Int

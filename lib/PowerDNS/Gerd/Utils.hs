@@ -89,9 +89,8 @@ runLog n = runStdoutLoggingT . includeTid . filterLogger logFilter
 
                        | otherwise
                        = lvl >= verbosity
-      where
-        verbosity = levels !! (n + 1)
-        levels = LevelError : LevelWarn : LevelInfo : repeat LevelDebug
+    verbosity = levels !! n
+    levels = LevelError : LevelWarn : LevelInfo : repeat LevelDebug
 
 showT :: Show a => a -> T.Text
 showT = T.pack . show
