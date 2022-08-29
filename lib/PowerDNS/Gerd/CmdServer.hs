@@ -53,7 +53,7 @@ runServerLogged opts = do
                  . setBeforeMainLoop (io welcome)
                  . setGracefulShutdownTimeout (Just 60)
                  $ defaultSettings
-    app <- mkApp tv
+    app <- includeTid (mkApp tv)
     liftIO $ runSettings settings app
   where
     shutdownHandler io closeSocket = liftIO $ do

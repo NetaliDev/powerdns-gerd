@@ -22,13 +22,21 @@ runVersion = putStrLn ourVersion >> exitSuccess
 
 ourVersion :: String
 ourVersion = unlines [ "version: " <> showVersion version
-                     , "build: "   <> $(gitBranch)
-                                   <> "@"
-                                   <> $(gitHash)
-                                   <> " (" <> $(gitCommitDate) <> ")"
-                                   <> dirty
-
-                     ]
+                     , "build: " <> git ]
   where
-        dirty | $(gitDirty) = " (uncommitted files present)"
+        branch :: String
+        branch = $(gitBranch)
+
+
+        git | branch == "UNKNOWN"
+            = "No git information"
+            | otherwise = branch
+                       <> "@"
+                       <> $(gitHash)
+                       <> " (" <> $(gitCommitDate) <> ")"
+                       <> dirty
+
+        isDirty :: Bool
+        isDirty = $(gitDirty)
+        dirty | isDirty = " (uncommitted files present)"
               | otherwise   = ""

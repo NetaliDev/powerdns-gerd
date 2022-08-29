@@ -15,7 +15,7 @@ module PowerDNS.Gerd.Utils
   , const5
   , hush
   , quoted
-  , ourVersion
+  , includeTid
   , runLog
   , showT
   )
@@ -26,13 +26,9 @@ import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.Logger (LogLevel(..), LogSource, LoggingT(..),
                                        filterLogger, runStdoutLoggingT,
                                        toLogStr)
-import           Data.Version (showVersion)
-
 import qualified Data.Text as T
-import           Development.GitRev
 
 import           Control.Monad.IO.Class (MonadIO)
-import           Paths_powerdns_gerd (version)
 
 const0 :: a -> a
 const0 a = a
@@ -58,19 +54,6 @@ hush = either (const Nothing) Just
 quoted :: T.Text -> T.Text
 quoted x = "\"" <> x <> "\""
 
-ourVersion :: String
-ourVersion = unlines [ "version: " <> showVersion version
-                     , "build: "   <> $(gitBranch)
-                                   <> "@"
-                                   <> $(gitHash)
-                                   <> " (" <> $(gitCommitDate) <> ")"
-                                   <> dirty
-
-                     ]
-  where
-        dirty | $(gitDirty) = " (uncommitted files present)"
-              | otherwise   = ""
-
 getTid :: MonadIO m => m String
 getTid = drop 9 . show <$> liftIO myThreadId
 
@@ -81,7 +64,7 @@ includeTid (LoggingT act) = LoggingT $ \logger -> act $ \loc src lvl str -> do
   logger loc src lvl (pref <> str)
 
 runLog :: MonadIO m => Int -> LoggingT m a -> m a
-runLog n = runStdoutLoggingT . includeTid . filterLogger logFilter
+runLog n = runStdoutLoggingT . filterLogger logFilter
   where
     logFilter :: LogSource -> LogLevel -> Bool
     logFilter _src lvl | n <= 0
