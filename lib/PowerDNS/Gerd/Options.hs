@@ -88,7 +88,7 @@ parseMemLimit = option (maybeReader reader) ( short 'm'
     reader = (`lookup` vals)
 
 parseOpsLimit :: Parser OpsLimit
-parseOpsLimit = option (maybeReader reader) ( short 'm'
+parseOpsLimit = option (maybeReader reader) ( short 'o'
                                            <> long "ops-limit"
                                            <> help ("Argon ops limit. Choices are: " <> choices)
                                            <> value OpsModerate
