@@ -1,9 +1,8 @@
+{-# LANGUAGE TypeApplications #-}
 module Main where
 
-import Control.Exception
 import System.Environment (getArgs)
-import System.Exit (exitFailure)
-import System.IO (BufferMode(..), hPutStrLn, hSetBuffering, stderr, stdout)
+import System.IO (BufferMode(..), hSetBuffering, stderr, stdout)
 
 import PowerDNS.Gerd.CmdConfig
 import PowerDNS.Gerd.CmdDigest
@@ -18,15 +17,9 @@ setBuffering = do
   hSetBuffering stderr LineBuffering
 
 main :: IO ()
-main = handle uncaught $ do
+main = do
     setBuffering
     runCommand =<< getCommand =<< getArgs
-
-  where
-    uncaught :: SomeException -> IO a
-    uncaught ex = do
-      hPutStrLn stderr (displayException ex)
-      exitFailure
 
 runCommand :: Command -> IO ()
 runCommand CmdVersion               = runVersion

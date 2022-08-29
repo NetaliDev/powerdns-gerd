@@ -10,28 +10,39 @@ module PowerDNS.Gerd.CmdServer
   )
 where
 
-import           Control.Monad.Logger (logInfoN)
+import           Control.Monad.Logger (logErrorN, logInfoN)
+import qualified Data.Text as T
 import           Network.Wai.Handler.Warp (defaultSettings, runSettings,
                                            setBeforeMainLoop,
                                            setGracefulShutdownTimeout, setHost,
                                            setInstallShutdownHandler, setPort)
+
+import           System.Exit (exitFailure)
+
 import           PowerDNS.Gerd.Config
 import           PowerDNS.Gerd.Options
 import           PowerDNS.Gerd.Server (mkApp)
 import           PowerDNS.Gerd.Types (IOL)
-import           PowerDNS.Gerd.Utils (runLog)
+import           PowerDNS.Gerd.Utils (includeTid, runLog)
 import qualified System.Posix.Signals as Posix
 import           UnliftIO (UnliftIO(..), askUnliftIO, liftIO)
+import           UnliftIO.Exception (SomeException, catch, displayException)
 import           UnliftIO.STM (TVar, atomically, newTVarIO, writeTVar)
 
 
 runServer :: ServerOpts -> IO ()
 runServer opts = runLog (optVerbosity opts) (runServerLogged opts)
 
+configErr :: SomeException -> IOL a
+configErr ex = do
+  logErrorN ("Exception while loading config: \n" <> T.pack (displayException ex))
+  liftIO exitFailure
+
 runServerLogged :: ServerOpts -> IOL ()
 runServerLogged opts = do
     UnliftIO io <- askUnliftIO
-    cfg <- loadConfig (optConfig opts)
+
+    cfg <- loadConfig (optConfig opts) `catch` configErr
 
     tv <- newTVarIO cfg
     liftIO $ Posix.installHandler Posix.sigHUP (Posix.Catch $ io (reloadConfig tv)) Nothing
