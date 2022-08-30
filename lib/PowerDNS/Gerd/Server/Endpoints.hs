@@ -122,7 +122,7 @@ handleAuthResSome xs = do
 
 type SrvSelector tok doc = AnySelector (SrvPerm tok) doc
 type ZoneSelector tok doc = AnySelector (ZonePerm tok) doc
-type PrimSelector doc = AnySelector PrimPerm doc
+type SimpleSelector doc = AnySelector SimplePerm doc
 type AnySelector what doc = Perms -> Maybe [what] `WithDoc` doc
 
 authorizeZoneEndpoint :: (KnownSymbol doc, Show tok) => User -> ZoneSelector tok doc -> T.Text -> T.Text -> GerdM tok
@@ -149,7 +149,7 @@ authorizeEndpoint__ user sel = do
   where
     pprSel = "endpoint=" <> quoted (describe sel)
 
-authorizePrimEndpoint :: KnownSymbol tag => User -> PrimSelector tag -> GerdM ()
+authorizePrimEndpoint :: KnownSymbol tag => User -> SimpleSelector tag -> GerdM ()
 authorizePrimEndpoint user sel = do
   perms <- authorizeEndpoint__ user sel
   handleAuthRes1 perms

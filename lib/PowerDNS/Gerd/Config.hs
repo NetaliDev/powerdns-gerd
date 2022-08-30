@@ -39,8 +39,8 @@ import           Network.DNS.Pattern.Internal (DomainPattern(..),
                                                LabelPattern(..))
 import           PowerDNS.API.Zones
 import           PowerDNS.Gerd.Permission.Types (DomTyPat, Filtered(..),
-                                                 Perms(..), PrimPerm(..),
-                                                 RecTyPat(..), SrvPerm(..),
+                                                 Perms(..), RecTyPat(..),
+                                                 SimplePerm(..), SrvPerm(..),
                                                  SrvPerm', WithDoc(WithDoc),
                                                  ZonePerm(..), ZonePerm',
                                                  describe)
@@ -64,8 +64,8 @@ data ApiKeyType = Key | Path
 optSectionDefault' :: a -> T.Text -> ValueSpec a -> T.Text -> SectionsSpec a
 optSectionDefault' def sect spec descr = fromMaybe def <$> optSection' sect spec descr
 
-primAuthSpec :: T.Text -> ValueSpec [PrimPerm]
-primAuthSpec ppName = [PrimPerm {..} ] <$ atomSpec "permit"
+primAuthSpec :: T.Text -> ValueSpec [SimplePerm]
+primAuthSpec ppName = [SimplePerm {..} ] <$ atomSpec "permit"
 
 srvAuthSpec :: T.Text -> ValueSpec [SrvPerm']
 srvAuthSpec spName = (pure <$> permit) <!> oneOrList
@@ -272,7 +272,7 @@ configSpec = sectionsSpec "top-level" $ do
 
 allForbidden :: Perms
 allForbidden = Perms
-  { permApiVersions       = WithDoc (Just [PrimPerm "apiVersions"])
+  { permApiVersions       = WithDoc (Just [SimplePerm "apiVersions"])
   , permServerList        = WithDoc Nothing
   , permServerView        = WithDoc Nothing
   , permSearch            = WithDoc Nothing

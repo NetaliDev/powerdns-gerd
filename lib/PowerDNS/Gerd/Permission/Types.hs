@@ -16,7 +16,7 @@ module PowerDNS.Gerd.Permission.Types
   , Perms(..)
   , SrvPerm(..)
   , SrvPerm'
-  , PrimPerm(..)
+  , SimplePerm(..)
   , ZonePerm(..)
   , ZonePerm'
   , describe
@@ -61,11 +61,11 @@ describe :: forall s a. KnownSymbol s => (Perms -> WithDoc a s) -> T.Text
 describe _ = T.pack (symbolVal (Proxy :: Proxy s))
 
 data Perms = Perms
-  { permApiVersions       :: Maybe [PrimPerm]
+  { permApiVersions       :: Maybe [SimplePerm]
                             `WithDoc` "list api versions"
 
   -- Server wide
-  , permServerList        :: Maybe [PrimPerm]
+  , permServerList        :: Maybe [SimplePerm]
                              `WithDoc` "list servers"
 
   , permServerView        :: Maybe [SrvPerm']
@@ -136,7 +136,7 @@ data Perms = Perms
   }
 
 -- | A primitive permission that unconditionally allows something. No patterns or tokens.
-data PrimPerm = PrimPerm { ppName :: T.Text }
+data SimplePerm = SimplePerm { ppName :: T.Text }
   deriving (Eq, Ord)
 
 type ZonePerm' = ZonePerm ()
@@ -175,7 +175,7 @@ instance Show tok => Perm (SrvPerm tok) where
               <+> "token=" <> showT (spToken p)
   token = spToken
 
-instance Perm PrimPerm where
-  type Tok PrimPerm = ()
+instance Perm SimplePerm where
+  type Tok SimplePerm = ()
   displayPerm p = "permission=" <> ppName p
   token _ = ()
