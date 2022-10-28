@@ -8,7 +8,7 @@ license-file:       LICENSE
 extra-source-files: CHANGELOG.md
 
 common all
-    build-depends:    base ^>= { 4.12.0.0, 4.14.1.0, 4.15.0.0, 4.16.0.0 }
+    build-depends:    base ^>= { 4.12.0.0, 4.14.1.0, 4.15.0.0, 4.16.0.0, 4.16.3.0 }
                     , powerdns ^>= 0.4.0
     ghc-options:      -Wall -Werror=incomplete-patterns -fno-warn-unticked-promoted-constructors -fno-warn-unused-do-bind
     default-language: Haskell2010
@@ -91,5 +91,5 @@ library powerdns-gerd-lib
                     , unix ^>= 2.7.2
                     , wai ^>= 3.2.3
                     , iproute ^>= 1.7.12
-                    , dns-patterns ^>= 0.2.1
+                    , dns-patterns ^>= 0.2.3
     hs-source-dirs:  lib
