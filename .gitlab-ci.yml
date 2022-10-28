@@ -31,7 +31,7 @@ build:linux:static:
   artifacts:
     paths:
       - arts/powerdns-gerd
-  image: registry.gitlab.com/wobcom/haskell/powerdns-gerd:builder
+  image: git.wobcom.de:5050/wobcom/haskell/powerdns-gerd:builder
   before_script:
     - source /root/.ghcup/env
   script:
@@ -58,7 +58,7 @@ test:
   dependencies:
     - build:linux
   services:
-    - name: registry.gitlab.com/wobcom/haskell/powerdns-gerd:pdns-service
+    - name: git.wobcom.de:5050/wobcom/haskell/powerdns-gerd:pdns-service
       alias: pdns
   stage: test
   tags:
