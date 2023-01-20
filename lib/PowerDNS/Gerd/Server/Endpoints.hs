@@ -33,7 +33,7 @@ import           Network.DNS.Pattern (DomainPattern, patternWorksInside,
 import           Network.HTTP.Types (Status(Status))
 import qualified PowerDNS.API as PDNS
 import qualified PowerDNS.Client as PDNS
-import           Servant (ServerError, err403, err422, err500, errBody)
+import           Servant (err403, err422, err500, errBody)
 import           Servant.Client (ClientError(FailureResponse), ClientM,
                                  ResponseF(..), runClientM)
 import           Servant.Server (ServerError(ServerError))
@@ -364,12 +364,15 @@ runProxy act = do
     r <- liftIO $ runClientM act ce
     either handleErr pure r
   where
-    handleErr (FailureResponse _ resp) = throwIO (responseFToServerErr resp)
-    handleErr other                    = throwIO other
+    handleErr o@(FailureResponse _ resp) = responseFToServerErr resp (throwIO o)
+    handleErr other                      = throwIO other
 
-    responseFToServerErr :: ResponseF BSL.ByteString -> ServerError
-    responseFToServerErr (Response (Status code message) headers _version body)
-      = ServerError code (BS8.unpack message) body (toList headers)
+    responseFToServerErr :: ResponseF BSL.ByteString -> GerdM a -> GerdM a
+    responseFToServerErr (Response (Status code message) headers _version body) rethrow
+      | code `elem` [422, 409, 404, 400]
+      = throwIO $ ServerError code (BS8.unpack message) body (toList headers)
+      | otherwise
+      = rethrow
 
 (<+>) :: T.Text -> T.Text -> T.Text
 l <+> r = l <> " " <> r
