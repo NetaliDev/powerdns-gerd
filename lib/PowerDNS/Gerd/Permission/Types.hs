@@ -106,10 +106,10 @@ data Perms = Perms
   , permZoneGetAxfr       :: Maybe [ZonePerm']
                              `WithDoc` "get a zone in axfr format"
 
-  , permZoneNotifySlaves  :: Maybe [ZonePerm']
+  , permZoneNotifySlaves  :: Maybe [ZonePerm Filtered]
                              `WithDoc` "notify slaves"
 
-  , permZoneRectify       :: Maybe [ZonePerm']
+  , permZoneRectify       :: Maybe [ZonePerm Filtered]
                              `WithDoc` "rectify a zone"
 
   , permZoneMetadata      :: Maybe [ZonePerm']

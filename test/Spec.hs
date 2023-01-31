@@ -97,6 +97,37 @@ assertFailureCode expectedCode prefix (Left err) = do
             actual = responseStatusCode resp
         r -> assertString (prefix <> ": returned with an unexpected error: " <> show r)
 
+notifyAndRectifyTests :: TestEnv -> TestTree
+notifyAndRectifyTests te = testGroup "Filtered rectify and notify" . fmap withZones $
+    [ testCase "filtered rectify works when we have a permission" $
+        assertOk =<< run (rectifyZone srvName zn)
+    , testCase "filtered rectify is refused when we do not have a permission" $ do
+        assertForbidden =<< runSomeoneElse (rectifyZone srvName zn2)
+    , testCase "filtered notify works when we have a permission" $ do
+        assertOk =<< run (notifySlaves srvName zn)
+    , testCase "filtered notify is refused when we do not have a permission" $ do
+        assertForbidden =<< runSomeoneElse (notifySlaves srvName zn2)
+    ]
+  where
+    zn = "zone-notify-and-rectify."
+    zn2 = "another-zone."
+
+    runSomeoneElse x = runGerdWith "user-no-notify-and-rectify" "correctSecret" x te
+    withZones = withSomeZone SomeZone
+      { szName = zn
+      , szRRsets = [ RRSet{ rrset_name = "foo.zone-notify-and-rectify."
+                          , rrset_type = TXT
+                          , rrset_ttl = Just 80000
+                          , rrset_changetype = Nothing
+                          , rrset_records = Just [Record "\"test-data\"" False]
+                          , rrset_comments = Nothing } ]
+      } te
+    run x = runGerdWith "user-notify-and-rectify" "correctSecret" x te
+data SomeZone = SomeZone
+  { szName :: T.Text
+  , szRRsets :: [RRSet]
+  }
+
 authnTests :: TestEnv -> TestTree
 authnTests te = testGroup "User Authentication"
   [ testCase "without authentication" $ assertUnauthenticated =<< runUnauth listVersions te
@@ -234,6 +265,18 @@ snd3 (_, b, _) = b
 trd3 :: (a, b, c) -> c
 trd3 (_, _, c) = c
 
+withSomeZone :: SomeZone -> TestEnv -> TestTree -> TestTree
+withSomeZone sz te t = withResource unsafeMakeZone unsafeDeleteZone (const t)
+  where
+    unsafeDeleteZone _ = () <$ unsafeRunUpstream (deleteZone "localhost" (szName sz)) te
+    unsafeMakeZone = () <$ unsafeRunUpstream (createZone "localhost" (Just True) zone) te
+    zone :: Zone
+    zone = empty { zone_name = Just (mkCIText (szName sz))
+                 , zone_kind = Just Native
+                 , zone_type = Just "zone"
+                 , zone_rrsets = Just (szRRsets sz)
+                 }
+
 withPresetZones :: TestEnv -> TestTree -> TestTree
 withPresetZones te t = withResource unsafeMakeZones unsafeDeleteZones (const t)
   where
@@ -280,6 +323,7 @@ tests :: TestEnv -> TestTree
 tests te = testGroup "PowerDNS tests"
     [ versionTests te
     , authnTests te
+    , notifyAndRectifyTests te
     , zoneTests te
     ]
 
@@ -328,4 +372,3 @@ main = do
 
         unsafeCleanZones testEnv
         defaultMain (tests testEnv)
-

@@ -98,6 +98,44 @@ permZoneListSpec spName = (pure <$> permit) <!> (pure <$> filtered) <!> oneOrLis
                     , spToken = Filtered
                     , .. }
 
+permZoneNotifySlavesSpec :: T.Text -> ValueSpec [ZonePerm Filtered]
+permZoneNotifySlavesSpec zpName = (pure <$> permit) <!> (pure <$> filtered) <!> oneOrList
+    (sectionsSpec "perm-zone-notify-slaves-spec" $ do
+        zpServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
+        zpPattern <- optSectionDefault' anyDomPat "zone" domPatSpec "Matching this zone. If left empty, will match any zone"
+        zpToken <- reqSection' "type" filteredSpec "If filtered, an API user may request a DNS NOTIFY when they have update access to any record."
+        pure ZonePerm{..})
+  where
+    permit = atomSpec "permit" $>
+             ZonePerm { zpServer = "localhost"
+                      , zpPattern = anyDomPat
+                      , zpToken = Unfiltered
+                      , .. }
+    filtered = atomSpec "filtered" $>
+               ZonePerm { zpServer = "localhost"
+                        , zpPattern = anyDomPat
+                        , zpToken = Filtered
+                        , .. }
+
+permZoneRectifySpec :: T.Text -> ValueSpec [ZonePerm Filtered]
+permZoneRectifySpec zpName = (pure <$> permit) <!> (pure <$> filtered) <!> oneOrList
+    (sectionsSpec "perm-zone-rectify-spec" $ do
+        zpServer <- optSectionDefault' "localhost" "server" textSpec "Matching this server. Defaults to localhost"
+        zpPattern <- optSectionDefault' anyDomPat "zone" domPatSpec "Matching this zone. If left empty, will match any zone"
+        zpToken <- reqSection' "type" filteredSpec "If filtered, an API user may rectify the zone when they have update access to any record."
+        pure ZonePerm{..})
+  where
+    permit = atomSpec "permit" $>
+             ZonePerm { zpServer = "localhost"
+                      , zpPattern = anyDomPat
+                      , zpToken = Unfiltered
+                      , .. }
+    filtered = atomSpec "filtered" $>
+               ZonePerm { zpServer = "localhost"
+                        , zpPattern = anyDomPat
+                        , zpToken = Filtered
+                        , .. }
+
 permZoneViewSpec :: T.Text -> ValueSpec [ZonePerm Filtered]
 permZoneViewSpec zpName = (pure <$> permit) <!> (pure <$> filtered) <!> oneOrList
     (sectionsSpec "perm-zone-view-spec" $ do
@@ -167,8 +205,8 @@ permsSpec = sectionsSpec "perms-spec" $ do
     permZoneDelete        <- WithDoc <$> optSection2' "zoneDelete" permZoneSpec (annotationFor permZoneDelete)
     permZoneTriggerAxfr   <- WithDoc <$> optSection2' "zoneTriggerAxfr" permZoneSpec (annotationFor permZoneTriggerAxfr)
     permZoneGetAxfr       <- WithDoc <$> optSection2' "zoneGetAxfr" permZoneSpec (annotationFor permZoneGetAxfr)
-    permZoneNotifySlaves  <- WithDoc <$> optSection2' "zoneNotifySlaves" permZoneSpec (annotationFor permZoneNotifySlaves)
-    permZoneRectify       <- WithDoc <$> optSection2' "zoneRectify" permZoneSpec (annotationFor permZoneRectify)
+    permZoneNotifySlaves  <- WithDoc <$> optSection2' "zoneNotifySlaves" permZoneNotifySlavesSpec (annotationFor permZoneNotifySlaves)
+    permZoneRectify       <- WithDoc <$> optSection2' "zoneRectify" permZoneRectifySpec (annotationFor permZoneRectify)
     permZoneMetadata      <- WithDoc <$> optSection2' "zoneMetadata" permZoneSpec (annotationFor permZoneMetadata)
     permZoneCryptokeys    <- WithDoc <$> optSection2' "zoneCryptokeys" permZoneSpec (annotationFor permZoneCryptokeys)
     permTSIGKeyList       <- WithDoc <$> optSection2' "tsigKeyList" srvAuthSpec (annotationFor permTSIGKeyList)

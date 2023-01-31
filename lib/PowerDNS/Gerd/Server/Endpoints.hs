@@ -274,22 +274,34 @@ guardedZones user = PDNS.ZonesAPI
         runProxy (PDNS.triggerAxfr srv zone)
 
     , PDNS.apiNotifySlaves  = \srv zone -> do
-        authorizeZoneEndpoint user permZoneNotifySlaves srv zone
-        runProxy (PDNS.notifySlaves srv zone)
+        mode <- authorizeZoneEndpoint user permZoneNotifySlaves srv zone
+        case mode of
+          Filtered -> do
+            perms <- authorizeEndpoint__ user permZoneUpdateRecords
+            if null perms
+              then forbidden
+              else runProxy (PDNS.notifySlaves srv zone)
+          Unfiltered -> runProxy (PDNS.notifySlaves srv zone)
 
     , PDNS.apiGetZoneAxfr   = \srv zone -> do
         authorizeZoneEndpoint user permZoneGetAxfr srv zone
         runProxy (PDNS.getZoneAxfr srv zone)
 
     , PDNS.apiRectifyZone   = \srv zone -> do
-        authorizeZoneEndpoint user permZoneRectify srv zone
-        runProxy (PDNS.rectifyZone srv zone)
+        mode <- authorizeZoneEndpoint user permZoneRectify srv zone
+        case mode of
+          Filtered -> do
+            perms <- authorizeEndpoint__ user permZoneUpdateRecords
+            if null perms
+              then forbidden
+              else runProxy (PDNS.rectifyZone srv zone)
+          Unfiltered -> runProxy (PDNS.rectifyZone srv zone)
     }
 
 guardedCryptokeys :: User -> PDNS.CryptokeysAPI AsGerd
 guardedCryptokeys user = PDNS.CryptokeysAPI
     { PDNS.apiListCryptokeys  = \srv zone -> do
-        authorizeZoneEndpoint user permZoneCryptokeys srv zone
+        authorizeZoneEndpoint user permZoneCryptokeys srv zonE
         runProxy (PDNS.listCryptoKeys srv zone)
 
     , PDNS.apiCreateCryptokey = \srv zone key -> do
