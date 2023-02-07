@@ -336,39 +336,12 @@ main :: IO ()
 main = do
   hSetBuffering stdout LineBuffering
   hSetBuffering stderr LineBuffering
-  isCI <- isJust <$> lookupEnv "IN_GITLAB_CI"
+  mgr <- newManager defaultManagerSettings
+  let gerdUrl = BaseUrl Http "127.0.0.1" 9000 ""
+      gerdEnv = mkClientEnv mgr gerdUrl
+      upstreamUrl = BaseUrl Http "127.0.0.1" 8081 ""
+      upstreamEnv = applyXApiKey "secret" (mkClientEnv mgr upstreamUrl)
+      testEnv = TestEnv gerdEnv upstreamEnv
 
-  cfg <- loadConfig "./test/powerdns-gerd.test.conf" `catch` configErr
-
-
-
-  let (cfg', upstream) = if isCI
-        then ( cfg { cfgUpstreamApiBaseUrl = "http://pdns:8081" }
-             , BaseUrl Http "pdns" 8081 "" )
-        else ( cfg
-             , BaseUrl Http "127.0.0.1" 8081 "" )
-
-  tvCfg <- newTVarIO cfg'
-
-  -- We cannot use runFileLoggingT because that would close the file handle
-  -- right after mkApp again. Instead we do the same but with bracket covering
-  -- running the testsuite as well.
-  bracket (openFile "./test/gerd.server.log" AppendMode)
-          (hClose)
-          $ \h -> do
-    hSetBuffering h LineBuffering
-    let runLog m = runLoggingT m (defaultOutput h)
-
-
-    app <- runLog (mkApp tvCfg)
-
-    testWithApplication (pure app) $ \port -> do
-        mgr <- newManager defaultManagerSettings
-        let gerdUrl = BaseUrl Http "127.0.0.1" port ""
-            gerdEnv = mkClientEnv mgr gerdUrl
-            upstreamUrl = upstream
-            upstreamEnv = applyXApiKey "secret" (mkClientEnv mgr upstreamUrl)
-            testEnv = TestEnv gerdEnv upstreamEnv
-
-        unsafeCleanZones testEnv
-        defaultMain (tests testEnv)
+  unsafeCleanZones testEnv
+  defaultMain (tests testEnv)

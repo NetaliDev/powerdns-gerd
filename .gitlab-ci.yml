@@ -1,70 +1,18 @@
-stages:
-  - build
-  - test
-
-variables:
-  GIT_STRATEGY: clone
-
-build:linux:
-  stage: build
-  tags:
-    - haskell
-  artifacts:
-    paths:
-      - build/test/powerdns-gerd-test
-      - build/test/powerdns-gerd.test.conf
-      - build/powerdns-gerd
-  script:
-    - mkdir -p build/test
-    - cp .ci/ci.cabal.project cabal.project.local
-    - cabal build powerdns-gerd
-    - cabal build powerdns-gerd:test:powerdns-gerd-test
-    - cp $(cabal -v0 list-bin powerdns-gerd:test:powerdns-gerd-test) build/test/powerdns-gerd-test
-    - cp $(cabal -v0 list-bin powerdns-gerd) build/powerdns-gerd
-    - strip build/powerdns-gerd
-    - cp test/powerdns-gerd.test.conf build/test/powerdns-gerd.test.conf
-
 build:linux:static:
   stage: build
   tags:
-    - docker
+    - cerberus
   artifacts:
     paths:
       - arts/powerdns-gerd
-  image: git.wobcom.de:5050/wobcom/haskell/powerdns-gerd:builder
-  before_script:
-    - source /root/.ghcup/env
   script:
     - mkdir arts
-    - cp .ci/static.cabal.project cabal.project.local
-    - cabal build powerdns-gerd:exe:powerdns-gerd
-    - cp $(cabal -v0 list-bin powerdns-gerd) arts/powerdns-gerd
-    - strip arts/powerdns-gerd
-
-testExampleConfig:
-  stage: test
-  tags:
-    - haskell
-  dependencies:
-    - build:linux
-  script:
-    - ./build/powerdns-gerd config-validate -c ./powerdns-gerd.conf.example
+    - OUT=$(nix-build default.nix -A powerdns-gerd.components.exes.powerdns-gerd)
+    - cp "$OUT"/bin/powerdns-gerd arts
 
 test:
-  image: ubuntu:focal
-  variables:
-    DEBIAN_FRONTEND: "noninteractive"
-    IN_GITLAB_CI: "yes"
-  dependencies:
-    - build:linux
-  services:
-    - name: git.wobcom.de:5050/wobcom/haskell/powerdns-gerd:pdns-service
-      alias: pdns
   stage: test
   tags:
-    - docker
+    - cerberus
   script:
-    - apt update
-    - apt install --yes --no-install-recommends zlib1g libsodium23
-    - cd build/
-    - ./test/powerdns-gerd-test
+    - nix-build test.nix -A default

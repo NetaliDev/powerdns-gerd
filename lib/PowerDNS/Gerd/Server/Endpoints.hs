@@ -301,7 +301,7 @@ guardedZones user = PDNS.ZonesAPI
 guardedCryptokeys :: User -> PDNS.CryptokeysAPI AsGerd
 guardedCryptokeys user = PDNS.CryptokeysAPI
     { PDNS.apiListCryptokeys  = \srv zone -> do
-        authorizeZoneEndpoint user permZoneCryptokeys srv zonE
+        authorizeZoneEndpoint user permZoneCryptokeys srv zone
         runProxy (PDNS.listCryptoKeys srv zone)
 
     , PDNS.apiCreateCryptokey = \srv zone key -> do
