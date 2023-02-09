@@ -1,3 +1,14 @@
+stages:
+  - test
+  - build
+
+test:
+  stage: test
+  tags:
+    - cerberus
+  script:
+    - nix-build test.nix -A default
+
 build:linux:static:
   stage: build
   tags:
@@ -9,10 +20,3 @@ build:linux:static:
     - mkdir arts
     - OUT=$(nix-build default.nix -A powerdns-gerd.components.exes.powerdns-gerd)
     - cp "$OUT/bin/powerdns-gerd" arts
-
-test:
-  stage: test
-  tags:
-    - cerberus
-  script:
-    - nix-build test.nix -A default
