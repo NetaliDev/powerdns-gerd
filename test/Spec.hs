@@ -250,6 +250,7 @@ domainMatrix =
   , ("zone.", "globstar.user2.zone.", Nothing)
   , ("zone.", "sub.globstar.user2.zone.", Just ("user2", ATXT))
   , ("zone.", "sub.sub.globstar.user2.zone.", Just ("user2", ATXT))
+
   , ("zone.", "alpha.glob.user2.zone.", Nothing)
   , ("zone.", "sub.alpha.glob.user2.zone.", Just ("user2", ATXT))
   ]

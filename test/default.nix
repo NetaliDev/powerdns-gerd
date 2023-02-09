@@ -20,7 +20,7 @@ nixos-lib.runTest {
             ${powerdns-gerd}/bin/powerdns-gerd server -c ${configFile}
           '';
           wantedBy = ["multi-user.target"];
-          after = ["network-online.target"];
+          after = ["network.target"];
         };
 
         systemd.services.pdns-init = {
@@ -53,6 +53,7 @@ nixos-lib.runTest {
 
   testScript = ''
     pdns.wait_for_unit("powerdns-gerd.service")
+    pdns.wait_for_unit("network-online.target")
     pdns.succeed("powerdns-gerd-test")
   '';
 }

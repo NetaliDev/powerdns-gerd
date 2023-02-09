@@ -8,7 +8,7 @@ build:linux:static:
   script:
     - mkdir arts
     - OUT=$(nix-build default.nix -A powerdns-gerd.components.exes.powerdns-gerd)
-    - cp "$OUT"/bin/powerdns-gerd arts
+    - cp "$OUT/bin/powerdns-gerd" arts
 
 test:
   stage: test

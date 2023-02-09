@@ -26,4 +26,5 @@ in pkgs.pkgsCross.musl64.haskell-nix.project {
     src = ./.;
   };
   compiler-nix-name = "ghc925";
+  index-state = "2023-02-08T00:00:00Z";
 }
