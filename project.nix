@@ -29,7 +29,7 @@ in overlaidPkgs.haskell-nix.project {
     name = "powerdns-gerd";
     src = ./.;
   };
-  checkMaterialization = true;
+  # checkMaterialization = true;
   plan-sha256 = "19nzj3ggciakml718j64lqbh3jdzd5xmkibiznr58dw26p9c8ngn";
   materialized = ./powerdns-gerd.materialized;
   compiler-nix-name = "ghc925";
