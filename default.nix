@@ -16,7 +16,7 @@ let
 
     # These arguments passed to nixpkgs, include some patches and also
     # the haskell.nix functionality itself as an overlay.
-    haskellNix.nixpkgsArgs;
+    (haskellNix.nixpkgsArgs // { system = "x86_64-linux"; }) ;
 
   hlib = pkgs.haskell-nix.haskellLib;
 in pkgs.pkgsCross.musl64.haskell-nix.project {
