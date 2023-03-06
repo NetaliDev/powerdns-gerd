@@ -61,11 +61,14 @@ data Config = Config
 
 data ApiKeyType = Key | Path
 
+atomOrTextSpec :: T.Text -> ValueSpec ()
+atomOrTextSpec l = atomOrTextSpec l <!> exactSpec (Text () l)
+
 optSectionDefault' :: a -> T.Text -> ValueSpec a -> T.Text -> SectionsSpec a
 optSectionDefault' def sect spec descr = fromMaybe def <$> optSection' sect spec descr
 
 primAuthSpec :: T.Text -> ValueSpec [SimplePerm]
-primAuthSpec ppName = [SimplePerm {..} ] <$ atomSpec "permit"
+primAuthSpec ppName = [SimplePerm {..} ] <$ atomOrTextSpec "permit"
 
 srvAuthSpec :: T.Text -> ValueSpec [SrvPerm']
 srvAuthSpec spName = (pure <$> permit) <!> oneOrList
@@ -74,7 +77,7 @@ srvAuthSpec spName = (pure <$> permit) <!> oneOrList
       spToken <- pure ()
       pure SrvPerm{..})
   where
-    permit = atomSpec "permit" $>
+    permit = atomOrTextSpec "permit" $>
             SrvPerm { spServer = "localhost"
                     , spToken = ()
                     , .. }
@@ -89,11 +92,11 @@ permZoneListSpec spName = (pure <$> permit) <!> (pure <$> filtered) <!> oneOrLis
         spToken <- reqSection' "type" filteredSpec "Whether or not records will be filtered using zoneUpdateRecords permissions"
         pure SrvPerm{..})
   where
-    permit = atomSpec "permit" $>
+    permit = atomOrTextSpec "permit" $>
              SrvPerm { spServer = "localhost"
                      , spToken = Unfiltered
                      , .. }
-    filtered = atomSpec "filtered" $>
+    filtered = atomOrTextSpec "filtered" $>
             SrvPerm { spServer = "localhost"
                     , spToken = Filtered
                     , .. }
@@ -106,12 +109,12 @@ permZoneNotifySlavesSpec zpName = (pure <$> permit) <!> (pure <$> filtered) <!> 
         zpToken <- reqSection' "type" filteredSpec "If filtered, an API user may request a DNS NOTIFY when they have update access to any record."
         pure ZonePerm{..})
   where
-    permit = atomSpec "permit" $>
+    permit = atomOrTextSpec "permit" $>
              ZonePerm { zpServer = "localhost"
                       , zpPattern = anyDomPat
                       , zpToken = Unfiltered
                       , .. }
-    filtered = atomSpec "filtered" $>
+    filtered = atomOrTextSpec "filtered" $>
                ZonePerm { zpServer = "localhost"
                         , zpPattern = anyDomPat
                         , zpToken = Filtered
@@ -125,12 +128,12 @@ permZoneRectifySpec zpName = (pure <$> permit) <!> (pure <$> filtered) <!> oneOr
         zpToken <- reqSection' "type" filteredSpec "If filtered, an API user may rectify the zone when they have update access to any record."
         pure ZonePerm{..})
   where
-    permit = atomSpec "permit" $>
+    permit = atomOrTextSpec "permit" $>
              ZonePerm { zpServer = "localhost"
                       , zpPattern = anyDomPat
                       , zpToken = Unfiltered
                       , .. }
-    filtered = atomSpec "filtered" $>
+    filtered = atomOrTextSpec "filtered" $>
                ZonePerm { zpServer = "localhost"
                         , zpPattern = anyDomPat
                         , zpToken = Filtered
@@ -144,12 +147,12 @@ permZoneViewSpec zpName = (pure <$> permit) <!> (pure <$> filtered) <!> oneOrLis
         zpToken <- reqSection' "type" filteredSpec "Whether or not records in all zones will be filtered using zoneUpdateRecords permissions. If a zone has no visible records, it will be omitted entirely"
         pure ZonePerm{..})
   where
-    permit = atomSpec "permit" $>
+    permit = atomOrTextSpec "permit" $>
              ZonePerm { zpServer = "localhost"
                       , zpPattern = anyDomPat
                       , zpToken = Unfiltered
                       , .. }
-    filtered = atomSpec "filtered" $>
+    filtered = atomOrTextSpec "filtered" $>
                ZonePerm { zpServer = "localhost"
                         , zpPattern = anyDomPat
                         , zpToken = Filtered
@@ -163,7 +166,7 @@ permZoneSpec zpName = (pure <$> permit) <!> oneOrList
         zpToken <- pure ()
         pure ZonePerm{..})
   where
-    permit = atomSpec "permit" $>
+    permit = atomOrTextSpec "permit" $>
              ZonePerm { zpServer = "localhost"
                       , zpPattern = anyDomPat
                       , zpToken = ()
@@ -183,7 +186,7 @@ permZoneUpdateRecordsSpec zpName = (pure <$> permit) <!> oneOrList
         zpToken <- domTyPatSpec
         pure ZonePerm{..})
   where
-    permit = atomSpec "permit" $>
+    permit = atomOrTextSpec "permit" $>
              ZonePerm { zpServer = "localhost"
                       , zpPattern = anyDomPat
                       , zpToken = (anyDomPat, AnyRecordType)
@@ -223,12 +226,12 @@ permsSpec = sectionsSpec "perms-spec" $ do
     annotationFor sel = "Permission to " <> describe sel
 
 filteredSpec :: ValueSpec Filtered
-filteredSpec = Filtered <$ atomSpec "filtered"
-           <!> Unfiltered <$ atomSpec "unfiltered"
+filteredSpec = Filtered <$ atomOrTextSpec "filtered"
+           <!> Unfiltered <$ atomOrTextSpec "unfiltered"
 
 recTyPatSpec :: ValueSpec RecTyPat
 recTyPatSpec = namedSpec "record-type-spec" $
-                 AnyRecordType <$ atomSpec "any"
+                 AnyRecordType <$ atomOrTextSpec "any"
              <!> AnyOf <$> oneOrList recordAtomSpec
 
 domPatSpec :: ValueSpec DomainPattern
@@ -237,56 +240,56 @@ domPatSpec = customSpec "Absolute domain (with trailing dot). A trailing globsta
                             (first T.pack . parsePattern)
 
 recordAtomSpec :: ValueSpec RecordType
-recordAtomSpec =    A          <$ atomSpec "A"
-                <!> AAAA       <$ atomSpec "AAAA"
-                <!> AFSDB      <$ atomSpec "AFSDB"
-                <!> ALIAS      <$ atomSpec "ALIAS"
-                <!> APL        <$ atomSpec "APL"
-                <!> CAA        <$ atomSpec "CAA"
-                <!> CERT       <$ atomSpec "CERT"
-                <!> CDNSKEY    <$ atomSpec "CDNSKEY"
-                <!> CDS        <$ atomSpec "CDS"
-                <!> CNAME      <$ atomSpec "CNAME"
-                <!> DNSKEY     <$ atomSpec "DNSKEY"
-                <!> DNAME      <$ atomSpec "DNAME"
-                <!> DS         <$ atomSpec "DS"
-                <!> HINFO      <$ atomSpec "HINFO"
-                <!> KEY        <$ atomSpec "KEY"
-                <!> LOC        <$ atomSpec "LOC"
-                <!> MX         <$ atomSpec "MX"
-                <!> NAPTR      <$ atomSpec "NAPTR"
-                <!> NS         <$ atomSpec "NS"
-                <!> NSEC       <$ atomSpec "NSEC"
-                <!> NSEC3      <$ atomSpec "NSEC3"
-                <!> NSEC3PARAM <$ atomSpec "NSEC3PARAM"
-                <!> OPENPGPKEY <$ atomSpec "OPENPGPKEY"
-                <!> PTR        <$ atomSpec "PTR"
-                <!> RP         <$ atomSpec "RP"
-                <!> RRSIG      <$ atomSpec "RRSIG"
-                <!> SOA        <$ atomSpec "SOA"
-                <!> SPF        <$ atomSpec "SPF"
-                <!> SSHFP      <$ atomSpec "SSHFP"
-                <!> SRV        <$ atomSpec "SRV"
-                <!> TKEY       <$ atomSpec "TKEY"
-                <!> TSIG       <$ atomSpec "TSIG"
-                <!> TLSA       <$ atomSpec "TLSA"
-                <!> SMIMEA     <$ atomSpec "SMIMEA"
-                <!> TXT        <$ atomSpec "TXT"
-                <!> URI        <$ atomSpec "URI"
-                <!> A6         <$ atomSpec "A6"
-                <!> DHCID      <$ atomSpec "DHCID"
-                <!> DLV        <$ atomSpec "DLV"
-                <!> EUI48      <$ atomSpec "EUI48"
-                <!> EUI64      <$ atomSpec "EUI64"
-                <!> IPSECKEY   <$ atomSpec "IPSECKEY"
-                <!> KX         <$ atomSpec "KX"
-                <!> MAILA      <$ atomSpec "MAILA"
-                <!> MAILB      <$ atomSpec "MAILB"
-                <!> MINFO      <$ atomSpec "MINFO"
-                <!> MR         <$ atomSpec "MR"
-                <!> RKEY       <$ atomSpec "RKEY"
-                <!> SIG        <$ atomSpec "SIG"
-                <!> WKS        <$ atomSpec "WKS"
+recordAtomSpec =    A          <$ atomOrTextSpec "A"
+                <!> AAAA       <$ atomOrTextSpec "AAAA"
+                <!> AFSDB      <$ atomOrTextSpec "AFSDB"
+                <!> ALIAS      <$ atomOrTextSpec "ALIAS"
+                <!> APL        <$ atomOrTextSpec "APL"
+                <!> CAA        <$ atomOrTextSpec "CAA"
+                <!> CERT       <$ atomOrTextSpec "CERT"
+                <!> CDNSKEY    <$ atomOrTextSpec "CDNSKEY"
+                <!> CDS        <$ atomOrTextSpec "CDS"
+                <!> CNAME      <$ atomOrTextSpec "CNAME"
+                <!> DNSKEY     <$ atomOrTextSpec "DNSKEY"
+                <!> DNAME      <$ atomOrTextSpec "DNAME"
+                <!> DS         <$ atomOrTextSpec "DS"
+                <!> HINFO      <$ atomOrTextSpec "HINFO"
+                <!> KEY        <$ atomOrTextSpec "KEY"
+                <!> LOC        <$ atomOrTextSpec "LOC"
+                <!> MX         <$ atomOrTextSpec "MX"
+                <!> NAPTR      <$ atomOrTextSpec "NAPTR"
+                <!> NS         <$ atomOrTextSpec "NS"
+                <!> NSEC       <$ atomOrTextSpec "NSEC"
+                <!> NSEC3      <$ atomOrTextSpec "NSEC3"
+                <!> NSEC3PARAM <$ atomOrTextSpec "NSEC3PARAM"
+                <!> OPENPGPKEY <$ atomOrTextSpec "OPENPGPKEY"
+                <!> PTR        <$ atomOrTextSpec "PTR"
+                <!> RP         <$ atomOrTextSpec "RP"
+                <!> RRSIG      <$ atomOrTextSpec "RRSIG"
+                <!> SOA        <$ atomOrTextSpec "SOA"
+                <!> SPF        <$ atomOrTextSpec "SPF"
+                <!> SSHFP      <$ atomOrTextSpec "SSHFP"
+                <!> SRV        <$ atomOrTextSpec "SRV"
+                <!> TKEY       <$ atomOrTextSpec "TKEY"
+                <!> TSIG       <$ atomOrTextSpec "TSIG"
+                <!> TLSA       <$ atomOrTextSpec "TLSA"
+                <!> SMIMEA     <$ atomOrTextSpec "SMIMEA"
+                <!> TXT        <$ atomOrTextSpec "TXT"
+                <!> URI        <$ atomOrTextSpec "URI"
+                <!> A6         <$ atomOrTextSpec "A6"
+                <!> DHCID      <$ atomOrTextSpec "DHCID"
+                <!> DLV        <$ atomOrTextSpec "DLV"
+                <!> EUI48      <$ atomOrTextSpec "EUI48"
+                <!> EUI64      <$ atomOrTextSpec "EUI64"
+                <!> IPSECKEY   <$ atomOrTextSpec "IPSECKEY"
+                <!> KX         <$ atomOrTextSpec "KX"
+                <!> MAILA      <$ atomOrTextSpec "MAILA"
+                <!> MAILB      <$ atomOrTextSpec "MAILB"
+                <!> MINFO      <$ atomOrTextSpec "MINFO"
+                <!> MR         <$ atomOrTextSpec "MR"
+                <!> RKEY       <$ atomOrTextSpec "RKEY"
+                <!> SIG        <$ atomOrTextSpec "SIG"
+                <!> WKS        <$ atomOrTextSpec "WKS"
 
 hostPrefSpec :: ValueSpec HostPreference
 hostPrefSpec = fromString . T.unpack <$> textSpec
@@ -297,7 +300,7 @@ configSpec = sectionsSpec "top-level" $ do
   cfgUpstreamApiBaseUrl <- reqSection "upstreamApiBaseUrl" "The base URL of the upstream PowerDNS API."
   cfgUpstreamApiKey <- reqSection "upstreamApiKey" "The upstream X-API-Key secret or a path containing that secret."
   cfgUpstreamApiKeyType <- optSectionDefault' Key "upstreamApiKeyType"
-                                                 ((Key <$ atomSpec "key") <!> (Path <$ atomSpec "path"))
+                                                 ((Key <$ atomOrTextSpec "key") <!> (Path <$ atomOrTextSpec "path"))
                                                  "Path to a file containing the upstream X-API-Key secret."
 
   cfgListenAddress <- reqSection' "listenAddress" hostPrefSpec "The IP address the proxy will bind on"

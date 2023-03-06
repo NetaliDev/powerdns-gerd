@@ -1,6 +1,6 @@
 cabal-version:      3.0
 name:               powerdns-gerd
-version:            0.1.1
+version:            0.1.2
 maintainer:         dminuoso+git@icloud.com
 license:            BSD-3-Clause
 license-file:       LICENSE
@@ -68,7 +68,7 @@ library powerdns-gerd-lib
 
     build-depends:    attoparsec ^>= 0.14.2
                     , bytestring ^>= 0.11.3
-                    , config-schema ^>= 1.2.2
+                    , config-schema ^>= 1.3.0
                     , config-value ^>= 0.8.0
                     , containers ^>= 0.6.2
                     , gitrev ^>= 1.3.1
