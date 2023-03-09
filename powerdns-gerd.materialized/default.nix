@@ -179,7 +179,7 @@
         "kan-extensions".revision = (((hackage."kan-extensions")."5.2.5").revisions).default;
         "base".revision = (((hackage."base")."4.16.4.0").revisions).default;
         "time".revision = (((hackage."time")."1.9.3").revisions).default;
-        "config-schema".revision = (((hackage."config-schema")."1.2.2.0").revisions).default;
+        "config-schema".revision = (((hackage."config-schema")."1.3.0.0").revisions).default;
         "async".revision = (((hackage."async")."2.2.4").revisions).default;
         "async".flags.bench = false;
         "word8".revision = (((hackage."word8")."0.1.3").revisions).default;

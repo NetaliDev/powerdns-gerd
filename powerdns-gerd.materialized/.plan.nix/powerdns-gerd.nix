@@ -11,7 +11,7 @@
     flags = {};
     package = {
       specVersion = "3.0";
-      identifier = { name = "powerdns-gerd"; version = "0.1.1"; };
+      identifier = { name = "powerdns-gerd"; version = "0.1.2"; };
       license = "BSD-3-Clause";
       copyright = "";
       maintainer = "dminuoso+git@icloud.com";
