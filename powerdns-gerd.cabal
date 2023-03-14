@@ -14,7 +14,7 @@ common all
     default-language: Haskell2010
 
 common exes
-    ghc-options:      -rtsopts -threaded -with-rtsopts=-qg
+    ghc-options:      -rtsopts -threaded -with-rtsopts=-qg -g3
 
 common warp
     build-depends:    warp ^>= { 3.3.17, 3.3.18 }
