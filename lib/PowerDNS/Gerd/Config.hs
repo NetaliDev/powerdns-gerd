@@ -62,7 +62,7 @@ data Config = Config
 data ApiKeyType = Key | Path
 
 atomOrTextSpec :: T.Text -> ValueSpec ()
-atomOrTextSpec l = atomOrTextSpec l <!> exactSpec (Text () l)
+atomOrTextSpec l = atomSpec l <!> exactSpec (Text () l)
 
 optSectionDefault' :: a -> T.Text -> ValueSpec a -> T.Text -> SectionsSpec a
 optSectionDefault' def sect spec descr = fromMaybe def <$> optSection' sect spec descr
