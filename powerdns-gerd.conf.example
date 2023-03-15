@@ -14,13 +14,13 @@ defaultPermissions:
 
 users:
   * name: "ihvs0261"
-    passHash: "$argon2id$v=19$m=262144,t=3,p=1$zwuSU+Txl07k/MmrXrZbJA$2gsQm935f2Zrf7t2YwrTI25BvWON1DYSDsnaWJ84UMM"
+    credential: { hash: "$argon2id$v=19$m=262144,t=3,p=1$zwuSU+Txl07k/MmrXrZbJA$2gsQm935f2Zrf7t2YwrTI25BvWON1DYSDsnaWJ84UMM" }
     permissions:
       zoneUpdateRecords:
        * { domain: "_acme-challenge.netbox.service.wobcom.de.", types: [TXT] }
 
   * name: "odin-staging"
-    passHash: "$argon2id$v=19$m=262144,t=3,p=1$N65jGi/EBTjrXWz0YriY7w$xyVRMrwbIIWAbJmYNyB6NAAA7a5h99tXucJxwhHF5K4"
+    credential: {hash: "$argon2id$v=19$m=262144,t=3,p=1$N65jGi/EBTjrXWz0YriY7w$xyVRMrwbIIWAbJmYNyB6NAAA7a5h99tXucJxwhHF5K4" }
     permissions:
       zoneView:
         * { zone: "staging.service.wobcom.de.", type: unfiltered }
