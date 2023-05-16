@@ -8,15 +8,3 @@ test:
     - cerberus
   script:
     - nix-build test.nix -A default
-
-build:linux:static:
-  stage: build
-  tags:
-    - cerberus
-  artifacts:
-    paths:
-      - arts/powerdns-gerd
-  script:
-    - mkdir arts
-    - OUT=$(nix-build default.nix -A powerdns-gerd.components.exes.powerdns-gerd)
-    - cp "$OUT/bin/powerdns-gerd" arts
