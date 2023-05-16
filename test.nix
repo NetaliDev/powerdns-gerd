@@ -1,4 +1,4 @@
-let defaultComponents = (import ./default.nix).powerdns-gerd.components;
+let defaultComponents = (import ./project.nix { mode = "dynamic"; }).powerdns-gerd.components;
     localComponents = (import ./local.nix).powerdns-gerd.components;
 in {
   default = import ./test {
