@@ -25,7 +25,7 @@
     packages.x86_64-linux.default = flake.packages."powerdns-gerd:exe:powerdns-gerd";
     packages.x86_64-linux.powerdns-gerd = flake.packages."powerdns-gerd:exe:powerdns-gerd";
 
-    hydraJobs.powerdns-gerd.x86_64-linux = flake.packages."powerdns-gerd:exe:powerdns-gerd";
+    hydraJobs.powerdns-gerd = flake.packages."powerdns-gerd:exe:powerdns-gerd";
   };
 
 }
